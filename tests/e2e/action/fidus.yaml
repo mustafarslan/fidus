@@ -1,0 +1,9 @@
+# Fixture for .github/workflows/action-test.yml: documents this repository with the offline fake LLM.
+version: 1
+docs: {dir: docs-out}
+sources:
+  - repo: mustafarslan/fidus
+    alias: fidus
+    include: ["src/**", "README.md"]
+llm: {provider: fake, model: fake}
+schedule: {audit: {enabled: false}}

@@ -1,0 +1,88 @@
+# Fidus configuration: every key with its default. Only `sources` is required.
+version: 1
+
+docs:
+  dir: docs                      # chapters live here (relative to the docs repo root)
+  outline: fidus.outline.yaml    # the book's structure (kept outside docs.dir)
+  default_branch: null           # null = ask GitHub
+  index_file: README.md          # generated table of contents inside docs.dir (null = none)
+  language: en                   # language the book is written in
+  style_guide_extra: null        # optional path to extra style notes, e.g. STYLE.md
+
+sources:                         # 1..N repositories to document
+  - repo: acme/api               # GitHub source (owner/name)
+    alias: api                   # short name used in outline globs and citations: api:src/x.py
+    branch: null                 # null = the repo's default branch
+    include: ["src/**", "docs/adr/**", "README.md"]
+    exclude: ["**/tests/**", "**/*.test.*", "**/fixtures/**"]
+    sparse: false                # true = sparse-checkout only `include` (big monorepos)
+    token_env: null              # env var holding a token for this source (other owners, two-App setups)
+  - repo: acme/web
+    alias: web
+    include: ["src/**"]
+  # - path: ../local-service     # a local checkout; each commit counts as a change
+  #   alias: svc
+
+llm:
+  provider: anthropic            # anthropic | gemini | openai | fake
+  model: claude-opus-5
+  api_key_env: ANTHROPIC_API_KEY # the key is read from this env var, never from this file
+  base_url: null                 # OpenAI-compatible servers: http://localhost:11434/v1, https://openrouter.ai/api/v1, ...
+  tool_protocol: auto            # auto (native, JSON fallback) | native | json
+  temperature: null              # null = provider default (current Claude models reject it)
+  effort: null                   # Anthropic only: low | medium | high | xhigh | max
+  fallbacks: true                # Anthropic server-side refusal fallback where supported
+  max_output_tokens: 16000       # per model call
+  context_window: 200000         # tokens; used to keep conversations in bounds
+  prompt_cache: true             # Anthropic prompt caching
+  triage_model: null             # cheaper model for the file→chapter triage call
+  extra_headers: {}              # sent with every LLM request
+  pricing:                       # optional, to show $ estimates in the PR
+    input_per_mtok: null
+    output_per_mtok: null
+
+schedule:
+  audit:
+    enabled: true
+    every_days: 7                # full re-verification cadence
+    chapters_per_run: null       # null = all chapters; N = rotate through N per audit
+    structure_proposals: note    # note (in the PR body) | pr (separate fidus/outline PR) | off
+
+sync:
+  branch: fidus/sync             # the rolling PR branch
+  outline_branch: fidus/outline
+  bootstrap_branch: fidus/bootstrap
+  pr_title: "docs: Fidus nightly sync"
+  labels: [documentation, fidus]
+  reviewers: []                  # GitHub usernames requested on new PRs
+  team_reviewers: []
+  draft: false
+  max_prs_per_run: 50            # per source; the rest wait for the next night
+  noop_policy: defer             # defer | state_pr (open a PR even when no docs changed)
+  include_pr_body: true          # let the agent read PR descriptions (untrusted text)
+
+git:
+  author_name: Fidus             # overridden in Actions by the `git-user-name` input
+  author_email: fidus-bot@users.noreply.github.com
+
+budgets:
+  episode: { max_turns: 30, max_input_tokens: 600000, max_output_tokens: 40000 }
+  consistency: { max_turns: 12, max_input_tokens: 150000, max_output_tokens: 16000 }
+  triage: { max_input_tokens: 60000, max_output_tokens: 4000 }
+  outline: { max_turns: 40, max_input_tokens: 800000, max_output_tokens: 20000 }
+  run: { max_total_tokens: 4000000, max_episodes: 40 }
+  max_parallel_episodes: 2
+
+limits:
+  diff_max_bytes_per_file: 16000
+  diff_max_bytes_per_pr: 96000
+  pr_body_max_chars: 4000
+  read_file_max_bytes: 60000
+  list_files_max_entries: 500
+  search_max_results: 50
+  triage_confidence_threshold: 0.6
+  max_consistency_episodes: 6
+
+github:
+  api_url: https://api.github.com   # GitHub Enterprise Server: https://ghe.example.com/api/v3
+  server_url: https://github.com
