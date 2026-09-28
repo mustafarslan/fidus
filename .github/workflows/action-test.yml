@@ -1,0 +1,30 @@
+# Runs the composite action exactly as users do, offline (fake LLM, dry run), against this repo.
+name: Action test
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run Fidus via the local action
+        uses: ./
+        with:
+          github-token: ${{ github.token }}
+          config: tests/e2e/action/fidus.yaml
+          dry-run: "true"
+          extras: all
+          extra-args: --provider fake --since 2026-01-01T00:00:00Z
+      - name: Check artifacts
+        run: |
+          test -s fidus-out/pr-body.md
+          test -s fidus-out/state.json
+          cat fidus-out/pr-body.md

@@ -1,0 +1,13 @@
+version: 1
+title: Fidus Internals
+parts:
+  - id: foundations
+    title: "Part I: Foundations"
+    chapters:
+      - {id: overview, title: What Fidus Is, path: part-1/01-overview.md, level: fundamentals, sources: ["fidus:README.md"]}
+      - {id: agent, title: The Agent Loop, path: part-1/02-agent.md, level: intermediate, sources: ["fidus:src/fidus/agent/**"], prerequisites: [overview]}
+  - id: pipeline
+    title: "Part II: The Pipeline"
+    chapters:
+      - {id: pipeline, title: The Nightly Pipeline, path: part-2/01-pipeline.md, level: intermediate, sources: ["fidus:src/fidus/pipeline/**", "fidus:src/fidus/publish/**"], prerequisites: [agent]}
+      - {id: providers, title: LLM Providers, path: part-2/02-providers.md, level: advanced, sources: ["fidus:src/fidus/llm/**"], prerequisites: [agent]}

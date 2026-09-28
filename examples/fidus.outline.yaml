@@ -1,0 +1,49 @@
+# Example outline for a two-repo platform. The outline is the single source of truth for the
+# book's structure: Fidus fills in and maintains chapters but never adds, removes or reorders them.
+version: 1
+title: "The Acme Platform: A Textbook"
+description: "From first principles to internals: how the Acme API and web app work."
+parts:
+  - id: foundations
+    title: "Part I: Foundations"
+    chapters:
+      - id: overview
+        title: "What Acme Is and How It Is Built"
+        path: part-1-foundations/01-overview.md
+        level: fundamentals
+        summary: "System context, the main components, and a request's lifecycle at a glance."
+        sources: ["api:README.md", "api:src/app.py", "web:src/main.ts"]
+      - id: data-model
+        title: "The Data Model"
+        path: part-1-foundations/02-data-model.md
+        level: fundamentals
+        summary: "Entities, relations, and how migrations evolve the schema."
+        sources: ["api:src/models/**", "api:migrations/**"]
+        prerequisites: [overview]
+  - id: core
+    title: "Part II: Core Mechanisms"
+    chapters:
+      - id: auth
+        title: "Authentication and Sessions"
+        path: part-2-core/01-auth.md
+        level: intermediate
+        summary: "Token issuance and refresh, middleware, and the web session layer."
+        sources: ["api:src/auth/**", "web:src/lib/session.ts"]
+        prerequisites: [overview, data-model]
+      - id: api-design
+        title: "The HTTP API"
+        path: part-2-core/02-http-api.md
+        level: intermediate
+        summary: "Routing, validation, error model, pagination."
+        sources: ["api:src/routes/**", "api:src/schemas/**"]
+        prerequisites: [data-model]
+  - id: advanced
+    title: "Part III: Advanced Topics"
+    chapters:
+      - id: scaling
+        title: "Caching, Queues and Scaling"
+        path: part-3-advanced/01-scaling.md
+        level: advanced
+        summary: "Cache layers, background workers, and horizontal scaling."
+        sources: ["api:src/cache/**", "api:src/workers/**"]
+        prerequisites: [auth, api-design]

@@ -1,0 +1,73 @@
+name: "Fidus docs agent"
+description: "Autonomous documentation agent: keeps a textbook-style docs repo in sync with your source repos via reviewed nightly PRs."
+author: "Mustafa Arslan"
+branding:
+  icon: book-open
+  color: blue
+
+inputs:
+  github-token:
+    description: "Token that can read the source repos and write contents + pull requests on the docs repo (GitHub App installation token recommended)."
+    required: true
+  command:
+    description: "run | bootstrap"
+    default: "run"
+  config:
+    description: "Path to fidus.yaml, relative to the docs repo root."
+    default: "fidus.yaml"
+  mode:
+    description: "auto | sync | audit | full (for command=run)"
+    default: "auto"
+  dry-run:
+    description: "true = no GitHub writes; artifacts written to ./fidus-out"
+    default: "false"
+  python-version:
+    description: "Python used to run Fidus."
+    default: "3.12"
+  extras:
+    description: "pip extras to install: anthropic, gemini, openai or all"
+    default: "all"
+  git-user-name:
+    description: "Commit author name (e.g. <app-slug>[bot])."
+    default: ""
+  git-user-email:
+    description: "Commit author email."
+    default: ""
+  extra-args:
+    description: "Additional CLI arguments."
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install Fidus
+      shell: bash
+      env:
+        INPUT_EXTRAS: ${{ inputs.extras }}
+      run: python -m pip install --disable-pip-version-check --quiet "${GITHUB_ACTION_PATH}[${INPUT_EXTRAS}]"
+
+    - name: Run Fidus
+      shell: bash
+      env:
+        FIDUS_GITHUB_TOKEN: ${{ inputs.github-token }}
+        FIDUS_GIT_USER_NAME: ${{ inputs.git-user-name }}
+        FIDUS_GIT_USER_EMAIL: ${{ inputs.git-user-email }}
+        INPUT_COMMAND: ${{ inputs.command }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_MODE: ${{ inputs.mode }}
+        INPUT_DRY_RUN: ${{ inputs.dry-run }}
+        INPUT_EXTRA_ARGS: ${{ inputs.extra-args }}
+      run: |
+        case "$INPUT_COMMAND" in
+          run)       args=(run --config "$INPUT_CONFIG" --mode "$INPUT_MODE") ;;
+          bootstrap) args=(bootstrap --config "$INPUT_CONFIG") ;;
+          *) echo "unknown command: $INPUT_COMMAND" >&2; exit 2 ;;
+        esac
+        if [ "$INPUT_DRY_RUN" = "true" ]; then args+=(--dry-run --output ./fidus-out); fi
+        # Split extra-args on whitespace without glob expansion (quoting is not supported).
+        read -r -a extra <<< "$INPUT_EXTRA_ARGS"
+        fidus "${args[@]}" "${extra[@]}"
