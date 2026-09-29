@@ -90,6 +90,8 @@ class IncompleteEpisode(_M):
     chapter: str
     reason: str
     triggers: list[PendingTrigger] = Field(default_factory=list)
+    attempts: int = 1  # failed attempts so far (deferrals don't count)
+    quarantined: bool = False  # gave up after limits.max_retry_attempts; needs a human
 
 
 class BaseState(_M):

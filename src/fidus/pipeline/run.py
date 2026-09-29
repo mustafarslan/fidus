@@ -219,7 +219,9 @@ def _retry_items(state: State, alias_of: Callable[[str], str]) -> dict[str, list
     """Chapters left incomplete by earlier runs (budget, failures, episode cap) to redo now.
     Kept in `base`, so they survive the PR being merged before they succeed."""
     return {
-        inc.chapter: [_to_trigger(p, alias_of) for p in inc.triggers] for inc in state.base.retry
+        inc.chapter: [_to_trigger(p, alias_of) for p in inc.triggers]
+        for inc in state.base.retry
+        if not inc.quarantined
     }
 
 
@@ -249,27 +251,42 @@ def _record(
 
     # Incomplete work carried to the next run (in `base`: it must survive a merge).
     redone = set(by_chapter)
+    previous = {e.chapter: e for e in state.base.retry}
     retry = [e for e in state.base.retry if e.chapter not in redone]
+    max_attempts = session.cfg.limits.max_retry_attempts
+
+    def carried(chapter: str, triggers: list[Trigger]) -> list[PendingTrigger]:
+        """Keep the triggers of earlier attempts: they still owe an update."""
+        out = list(previous[chapter].triggers) if chapter in previous else []
+        keys = {p.key for p in out}
+        return out + [_to_pending(t) for t in triggers if t.key not in keys]
+
     for r in results:
-        if r.status not in ("failed", "protocol_error", "budget_exhausted"):
+        if r.status not in ("failed", "protocol_error", "budget_exhausted") or not r.chapter_id:
             continue
-        item = items.get(r.chapter_id or "")
+        item = items.get(r.chapter_id)
         reason = f"{r.status}: {r.error or ''}".strip(": ")
         if r.status == "budget_exhausted" and r.changed:
             reason = "budget exhausted; partial update written, will be completed next run"
+        prev = previous.get(r.chapter_id)
+        attempts = (prev.attempts if prev else 0) + 1
         retry.append(
             IncompleteEpisode(
-                chapter=r.chapter_id or "?",
+                chapter=r.chapter_id,
                 reason=reason,
-                triggers=[_to_pending(t) for t in item.triggers] if item else [],
+                triggers=carried(r.chapter_id, item.triggers if item else []),
+                attempts=attempts,
+                quarantined=attempts >= max_attempts,
             )
         )
     for item in plan.deferred:
+        prev = previous.get(item.chapter_id)
         retry.append(
             IncompleteEpisode(
                 chapter=item.chapter_id,
                 reason="deferred: episode cap reached",
-                triggers=[_to_pending(t) for t in item.triggers],
+                triggers=carried(item.chapter_id, item.triggers),
+                attempts=prev.attempts if prev else 0,
             )
         )
     state.base.retry = retry

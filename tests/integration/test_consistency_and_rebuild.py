@@ -148,3 +148,29 @@ def test_refuses_dirty_docs_repo(project: dict[str, Path], monkeypatch: pytest.M
     (project["docs"] / "notes.md").write_text("wip")
     with pytest.raises(ConfigError, match="uncommitted"):
         Session.open(Options(project["config"]))
+
+
+def test_failing_chapter_is_quarantined_after_max_attempts(
+    project: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _bootstrapped(project)
+    import fidus.pipeline.session as sess
+    from fidus.errors import ProviderError
+
+    def boom(messages: list[Message], tools: list[ToolSpec]) -> Completion:
+        raise ProviderError("model keeps crashing", retryable=False)
+
+    monkeypatch.setattr(sess, "make_provider", lambda *a, **k: FakeProvider([boom] * 10))
+    commit(
+        project["app"], {"src/auth/login.py": "def login(u, x=1):\n    return True\n"}, "feat: x"
+    )
+    for night in range(1, 4):
+        out = project["root"] / f"n{night}"
+        run(Options(project["config"], dry_run=True, output=out))
+        shutil.copy(out / "state.json", project["docs"] / ".fidus/state.json")  # "merged"
+        git(project["docs"], "commit", "-qam", f"merge night {night}")
+        entry = json.loads((out / "state.json").read_text())["base"]["retry"][0]
+        assert entry["attempts"] == night and entry["quarantined"] == (night == 3)
+    assert "Needs a human" in (project["root"] / "n3/pr-body.md").read_text()
+    rep = run(Options(project["config"], dry_run=True, output=project["root"] / "n4"))
+    assert rep.noop and not rep.episodes  # quarantined: no more attempts
