@@ -116,6 +116,7 @@ class SyncConfig(_Strict):
     branch: str = "fidus/sync"
     outline_branch: str = "fidus/outline"
     bootstrap_branch: str = "fidus/bootstrap"
+    cache_branch: str = "fidus/cache"  # holds only the triage cache; never run state
     pr_title: str = "docs: Fidus nightly sync"
     labels: list[str] = Field(default_factory=lambda: ["documentation", "fidus"])
     reviewers: list[str] = Field(default_factory=list)

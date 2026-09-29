@@ -37,7 +37,9 @@ The first release.
   quarantined and flagged "Needs a human" in the PR (#20).
 - **Prerequisites first:** chapters run after their prerequisites in the same run (#21).
 - **Glob suggestions:** the PR suggests copy-pasteable outline globs for uncovered files (#22).
-- **Triage cache:** triage decisions are cached across runs, from the first run that opens a PR
-  onward, and reset when the outline changes (#23).
+- **Triage cache:** triage decisions are cached across runs and reset when the outline changes
+  (#23). They are kept on a separate `fidus/cache` branch, so quiet nights that open no PR keep
+  them too (#35).
+- **`fidus state clear-retry`:** drop retry entries or lift a quarantine (#36).
 - **`tool_protocol: auto` is the default:** a turn is retried through the JSON protocol when a
   server drops a tool call.

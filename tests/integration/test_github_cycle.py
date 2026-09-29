@@ -255,3 +255,43 @@ def test_rolling_branch_lifecycle(world: dict[str, Any]) -> None:
             state["base"]["repos"]["local:app"]["cursor_sha"]
             == git(app, "rev-parse", "HEAD").strip()
         )
+
+
+def test_quiet_nights_keep_the_triage_cache(
+    world: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import fidus.pipeline.run as runmod
+    from fidus.llm.types import Usage
+
+    root, app, remote, night, gh = (
+        world["root"],
+        world["app"],
+        world["remote"],
+        world["night"],
+        world["gh"],
+    )
+    calls: list[list[str]] = []
+
+    def triage(files, *a, **k):  # type: ignore[no-untyped-def]
+        calls.append(list(files))
+        return {f: None for f in files}, Usage()  # confident: no documentation impact
+
+    monkeypatch.setattr(runmod, "triage", triage)
+    with respx.mock(assert_all_called=False) as mock:
+        gh.install(mock)
+        bootstrap(Options(night.checkout(remote) / "fidus.yaml"))
+        merge_into_main(root, remote, "fidus/bootstrap", gh)
+        commit(app, {"tools/gen.py": "print(1)\n"}, "chore: tooling")
+
+        r1 = do_run(night.checkout(remote))
+        assert r1.noop and gh.open_pr("fidus/sync") is None  # deferred: no PR
+        assert calls == [["app:tools/gen.py"]]
+        assert remote_sha(remote, "fidus/cache")  # but the decision was saved
+        cache = json.loads(git(remote, "show", "fidus/cache:triage-cache.json"))
+        assert cache["entries"] == {"app:tools/gen.py": None}
+
+        r2 = do_run(night.checkout(remote))  # same change re-collected, no new triage call
+        assert r2.noop and len(calls) == 1
+        before = remote_sha(remote, "fidus/cache")
+        do_run(night.checkout(remote))
+        assert remote_sha(remote, "fidus/cache") == before  # unchanged cache: no push

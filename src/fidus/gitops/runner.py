@@ -33,6 +33,7 @@ def git(
     host: str = "github.com",
     check: bool = True,
     env: dict[str, str] | None = None,
+    input: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     cmd = ["git", *auth_args(token, host), *args]
     full_env = {
@@ -42,7 +43,7 @@ def git(
         **(env or {}),
     }
     log.debug("git %s (cwd=%s)", redact(" ".join(args)), cwd)
-    proc = subprocess.run(cmd, cwd=cwd, env=full_env, capture_output=True, text=True)
+    proc = subprocess.run(cmd, cwd=cwd, env=full_env, capture_output=True, text=True, input=input)
     if check and proc.returncode != 0:
         raise GitError(
             f"git {redact(' '.join(args))} failed ({proc.returncode}): {redact(proc.stderr.strip())}"
