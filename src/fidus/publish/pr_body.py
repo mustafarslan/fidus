@@ -35,6 +35,31 @@ def _chapter_link(outline: Outline, cfg: FidusConfig, chapter_id: str) -> str:
     return f"[{outline.number_of(chapter_id)} {_esc(ch.title)}]({cfg.docs.dir}/{ch.path})"
 
 
+def _glob_for(alias_path: str) -> str:
+    alias, path = alias_path.split(":", 1)
+    return f"{alias}:{path.rsplit('/', 1)[0]}/**" if "/" in path else alias_path
+
+
+def glob_suggestions(pending: Pending) -> list[str]:
+    """Copy-pasteable outline `sources` additions for files no chapter glob covers."""
+    by_chapter: dict[str | None, set[str]] = {}
+    for t in pending.triggers:
+        for f, chapter in t.triaged.items():
+            by_chapter.setdefault(chapter, set()).add(_glob_for(f))
+        for f in t.unmapped_files:
+            by_chapter.setdefault(None, set()).add(_glob_for(f))
+    lines = [
+        f"`{chapter}`: add " + ", ".join(f"`{g}`" for g in sorted(globs))
+        for chapter, globs in sorted((k, v) for k, v in by_chapter.items() if k is not None)
+    ]
+    if None in by_chapter:
+        lines.append(
+            "no chapter yet (add to a chapter's `sources`, or create a chapter): "
+            + ", ".join(f"`{g}`" for g in sorted(by_chapter[None]))
+        )
+    return lines
+
+
 def render_pr_body(
     pending: Pending,
     outline: Outline,
@@ -142,6 +167,12 @@ def render_pr_body(
         )
     for o in pending.orphans:
         attention.append(f"File not in outline: `{cfg.docs.dir}/{o}`")
+    suggestions = glob_suggestions(pending)
+    if suggestions:
+        attention.append(
+            "Suggested `sources` globs for `fidus.outline.yaml` (files currently matched by "
+            "triage or by nothing):\n" + "\n".join(f"  - {s}" for s in suggestions)
+        )
     if attention:
         out += ["", "### Needs attention", ""] + [f"- {a}" for a in attention]
         out.append("")

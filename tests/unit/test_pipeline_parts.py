@@ -193,3 +193,32 @@ def test_triage_threshold_and_bad_output(cfg: FidusConfig, outline: Outline) -> 
     assert mapping == {"app:lib/a.py": "auth"}
     mapping, _ = triage(["app:lib/a.py"], outline, cfg, FakeProvider([fake_text("I cannot help")]))
     assert mapping == {}
+
+
+def test_glob_suggestions(cfg: FidusConfig, outline: Outline) -> None:
+    from fidus.publish.pr_body import glob_suggestions
+
+    s = State()
+    s.pending.triggers = [
+        PendingTrigger(
+            repo="acme/app",
+            number=1,
+            title="a",
+            status="applied",
+            chapters={"auth": "x"},
+            triaged={"app:src/sso/saml.py": "auth", "app:src/sso/oidc.py": "auth"},
+        ),
+        PendingTrigger(
+            repo="acme/app",
+            number=2,
+            title="b",
+            status="unmapped",
+            unmapped_files=["app:scripts/migrate.py", "app:Makefile"],
+        ),
+    ]
+    assert glob_suggestions(s.pending) == [
+        "`auth`: add `app:src/sso/**`",
+        "no chapter yet (add to a chapter's `sources`, or create a chapter): "
+        "`app:Makefile`, `app:scripts/**`",
+    ]
+    assert "`auth`: add `app:src/sso/**`" in render_pr_body(s.pending, outline, cfg)

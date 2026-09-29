@@ -58,6 +58,7 @@ class PendingTrigger(_M):
     status: TriggerStatus = "pending"
     chapters: dict[str, str] = Field(default_factory=dict)  # chapter id -> reason
     unmapped_files: list[str] = Field(default_factory=list)
+    triaged: dict[str, str] = Field(default_factory=dict)  # alias:path -> chapter picked by triage
     # Changed files (capped), so retries and rebuilds know what changed; diffs aren't stored.
     files: list[ChangedFileRef] = Field(default_factory=list)
     files_total: int = 0
