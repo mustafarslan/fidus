@@ -126,6 +126,27 @@ def test_init_writes_config_and_outline(tmp_path: Path, project: dict[str, Path]
     assert res.exit_code == 0, res.output
     assert (docs / "fidus.outline.yaml").exists()
     assert "create-github-app-token" in (docs / ".github/workflows/fidus.yml").read_text()
+    res = runner.invoke(
+        cli,
+        [
+            "init",
+            "-c",
+            str(docs / "fidus.yaml"),
+            "-y",
+            "--config-only",
+            "--write-workflow",
+            "--auth",
+            "github-token",
+            "--force",
+        ],
+    )
+    assert res.exit_code == 0, res.output
+    wf = (docs / ".github/workflows/fidus.yml").read_text()
+    assert (
+        "github.token" in wf
+        and "create-github-app-token" not in wf
+        and "pull-requests: write" in wf
+    )
     res = runner.invoke(cli, ["validate", "-c", str(docs / "fidus.yaml"), "--offline"])
     assert res.exit_code == 0, res.output
 

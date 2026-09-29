@@ -23,6 +23,7 @@ The documentation reads like a **computer-science textbook**. It is organised in
 ## Contents
 
 - [How it works](#how-it-works)
+- [Choosing how Fidus authenticates](#choosing-how-fidus-authenticates)
 - [Setup](#setup) (about 15 minutes)
   1. [Create a docs repository](#1-create-a-docs-repository)
   2. [Create the GitHub App](#2-create-the-github-app)
@@ -50,6 +51,19 @@ The documentation reads like a **computer-science textbook**. It is organised in
 6. **Publish.** Everything goes into **one rolling PR** on the branch `fidus/sync`. The PR description is a table: chapter, the PR that triggered the change, and a one-line reason. If you don't merge for a few days, later changes accumulate in the same PR. Nights with nothing to do produce no PR at all.
 
 Progress is stored in `.fidus/state.json` on the PR branch, so **the cursor only advances when you merge**. Closing a PR without merging it means "skip these changes". Chapters that fail, run out of budget or don't fit into a night are remembered and retried, even if you merge in the meantime.
+
+## Choosing how Fidus authenticates
+
+Fidus needs a token that can read your source repos, including their merged PRs, and push a branch
+and open a PR on the docs repo. Pick one:
+
+| Option | Setup | Use it when | Trade-offs |
+|---|---|---|---|
+| **GitHub App** (recommended) | `fidus setup-app`, one click | Teams; private source repos | PRs come from `your-app[bot]`; short-lived tokens not tied to a person; your docs CI runs on its PRs |
+| **Built-in `GITHUB_TOKEN`** | None: `fidus init --write-workflow --auth github-token` | Sources are **public**, or the docs live **in the same repo** as the code | Can't read other private repos. PRs don't trigger other workflows. Needs *Settings → Actions → General → Allow GitHub Actions to create and approve pull requests* |
+| **Personal access token** | 5 minutes ([below](#quick-start-with-a-personal-access-token-instead-of-an-app)) | Personal projects, a quick trial | PRs appear as you; the token expires; it's tied to your account |
+
+The zero-setup workflow is in [`examples/workflows/fidus-github-token.yml`](examples/workflows/fidus-github-token.yml).
 
 ## Setup
 

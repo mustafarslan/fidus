@@ -8,9 +8,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 USES = re.compile(r"uses:\s*([\w.-]+/[\w.-]+)@v(\d+)")
 TEMPLATE = ROOT / "src/fidus/templates/workflow.yml"
+TOKEN_TEMPLATE = ROOT / "src/fidus/templates/workflow-github-token.yml"
 USER_FACING = [
     TEMPLATE,
+    TOKEN_TEMPLATE,
     ROOT / "examples/workflows/fidus.yml",
+    ROOT / "examples/workflows/fidus-github-token.yml",
     ROOT / "README.md",
     ROOT / "docs/github-app.md",
 ]
@@ -24,8 +27,10 @@ def _majors(paths: list[Path]) -> dict[str, set[str]]:
     return out
 
 
-def test_example_matches_packaged_template() -> None:
+def test_examples_match_packaged_templates() -> None:
     assert (ROOT / "examples/workflows/fidus.yml").read_text() == TEMPLATE.read_text()
+    token_example = ROOT / "examples/workflows/fidus-github-token.yml"
+    assert token_example.read_text() == TOKEN_TEMPLATE.read_text()
 
 
 def test_user_facing_action_versions_match_repo_workflows() -> None:

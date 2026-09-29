@@ -1,0 +1,57 @@
+# Fidus nightly documentation sync, using the built-in GITHUB_TOKEN (no GitHub App, no PAT).
+# Works when the source repos are public, or when the docs live in this same repository.
+# Requires: Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests".
+# Trade-off: PRs opened with GITHUB_TOKEN don't trigger other workflows (e.g. docs CI).
+# Setup guide: https://github.com/mustafarslan/fidus#choosing-how-fidus-authenticates
+name: Fidus nightly docs sync
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # 00:00 UTC. GitHub may start scheduled runs late; Fidus is cursor-based, so nothing is lost.
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "auto | sync | audit | full"
+        type: choice
+        options: [auto, sync, audit, full]
+        default: auto
+      dry-run:
+        description: "Run without pushing (artifacts uploaded instead)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: fidus-${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write # push the fidus/* branches
+  pull-requests: write # open and update the docs PR
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false # Fidus passes the token to git itself
+
+      - name: Fidus
+        uses: mustafarslan/fidus@v1
+        with:
+          github-token: ${{ github.token }}
+          mode: ${{ inputs.mode || 'auto' }}
+          dry-run: ${{ inputs.dry-run || 'false' }}
+          git-user-name: github-actions[bot]
+          git-user-email: 41898282+github-actions[bot]@users.noreply.github.com
+
+      - name: Upload dry-run artifacts
+        if: ${{ inputs.dry-run == true }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: fidus-dry-run
+          path: fidus-out
