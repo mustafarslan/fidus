@@ -177,7 +177,10 @@ def test_rolling_branch_lifecycle(world: dict[str, Any]) -> None:
         commit(
             app, {"src/auth/login.py": "def login(user, ttl=3600):\n    return True\n"}, "feat: ttl"
         )
-        r1 = do_run(night.checkout(remote))
+        work1 = night.checkout(remote)
+        r1 = do_run(work1)
+        assert git(work1, "rev-parse", "--abbrev-ref", "HEAD").strip() == "main"  # branch restored
+        assert git(work1, "status", "--porcelain") == ""
         pr = gh.open_pr("fidus/sync")
         assert pr is not None and r1.changed_chapters == ["auth"]
         assert "feat: ttl" in json.dumps(pr) or "Authentication" in pr["body"]

@@ -71,6 +71,7 @@ class Session:
     _clone_lock: threading.Lock = field(default_factory=threading.Lock)
     _provider: Provider | None = None
     _triage_provider: Provider | None = None
+    _start_ref: str | None = None  # branch (or detached sha) to return to after a local run
 
     # -- construction -------------------------------------------------------------------------
     @classmethod
@@ -103,6 +104,7 @@ class Session:
                     + "). Fidus works from the pushed default branch: commit and push them "
                     "(or stash them), or use --dry-run."
                 )
+            s._start_ref = s.repo.start_ref()
             s.slug = docs_repo_slug() or s._slug_from_git()
             if not s.slug:
                 raise ConfigError("cannot determine the docs repo; set FIDUS_DOCS_REPO=owner/name")
@@ -297,3 +299,10 @@ class Session:
     def close(self) -> None:
         if self.api is not None:
             self.api.c.close()
+        if self.repo is not None and self._start_ref:
+            # Put a local clone back where the user left it. The start was clean (enforced in
+            # open), so anything left over in docs/ or .fidus/ came from this run.
+            try:
+                self.repo.restore(self._start_ref, [self.cfg.docs.dir, ".fidus"])
+            except FidusError as e:
+                log.warning("could not return to %s: %s", self._start_ref, e)

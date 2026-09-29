@@ -64,6 +64,21 @@ class DocsRepo:
     def current_branch(self) -> str:
         return self._git("rev-parse", "--abbrev-ref", "HEAD").strip()
 
+    def start_ref(self) -> str | None:
+        """The current branch name, or the commit sha when HEAD is detached (Actions)."""
+        branch = self._git("symbolic-ref", "--short", "-q", "HEAD", check=False).strip()
+        return branch or self.rev("HEAD")
+
+    def restore(self, ref: str, scratch_paths: list[str]) -> None:
+        """Check `ref` out again, dropping leftovers of an interrupted run in `scratch_paths`."""
+        on_ref = self.current_branch() == ref or self.rev("HEAD") == ref
+        if on_ref and not self.status_paths():
+            return
+        self._git("checkout", "-f", "-q", ref)
+        existing = [p for p in scratch_paths if (self.root / p).exists()]
+        if existing:
+            self._git("clean", "-fdq", "--", *existing)
+
     def rev(self, ref: str) -> str | None:
         out = git(["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"], self.root, check=False)
         return out.stdout.strip() or None
