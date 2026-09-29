@@ -41,5 +41,7 @@ The first release.
   (#23). They are kept on a separate `fidus/cache` branch, so quiet nights that open no PR keep
   them too (#35).
 - **`fidus state clear-retry`:** drop retry entries or lift a quarantine (#36).
+- **Accuracy benchmark:** `python -m fidus.bench.accuracy` has a judge model check chapters
+  against their cited sources, with mechanical verification of verbatim evidence (#37).
 - **`tool_protocol: auto` is the default:** a turn is retried through the JSON protocol when a
   server drops a tool call.
