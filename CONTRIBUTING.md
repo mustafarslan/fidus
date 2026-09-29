@@ -62,3 +62,16 @@ The design and its rationale are in [docs/design.md](docs/design.md).
     judge scored gemma4's book 97% before strict evidence checking and 87% after (catching a
     `checkout` vs `checkout_new` error). It still misses invented details inside hypothetical
     "example scenarios".
+
+## Releasing
+
+1. **Prepare:** bump `version` in `pyproject.toml` and `src/fidus/__init__.py`, date the CHANGELOG
+   entry, and merge.
+2. **Tag:** `git tag vX.Y.Z && git push origin vX.Y.Z`. The Release workflow builds, publishes to
+   TestPyPI and then PyPI, creates the GitHub release, and moves the `vX` major tag used by
+   `uses: mustafarslan/fidus@vX`.
+3. **Skipped versions:** a version that already exists on an index is skipped, so tagging a version
+   you uploaded by hand is safe.
+4. **One-time setup:** on pypi.org and test.pypi.org, add a *trusted publisher* for owner
+   `mustafarslan`, repository `fidus`, workflow `release.yml`, and environments `pypi` and
+   `testpypi` respectively.
