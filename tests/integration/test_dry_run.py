@@ -156,3 +156,39 @@ def test_init_force_keeps_config_and_regenerates_outline(project: dict[str, Path
     assert res.exit_code == 0, res.output
     assert cfg.read_text() == before
     assert "Project Handbook" in (project["docs"] / "fidus.outline.yaml").read_text()
+
+
+def test_init_repairs_low_coverage_outline(tmp_path: Path, project: dict[str, Path]) -> None:
+    docs = tmp_path / "cov"
+    docs.mkdir()
+    res = runner.invoke(
+        cli,
+        [
+            "init",
+            "-c",
+            str(docs / "fidus.yaml"),
+            "-s",
+            str(project["app"]),
+            "--provider",
+            "fake",
+            "-y",
+        ],
+    )
+    assert res.exit_code == 0, res.output
+    outline = (docs / "fidus.outline.yaml").read_text()
+    # The heuristic outline only covers app:src/**; README.md at the root triggers the repair.
+    assert "id: misc" in outline and "app:README.md" in outline
+
+
+def test_init_skips_repair_when_coverage_is_enough(
+    tmp_path: Path, project: dict[str, Path]
+) -> None:
+    docs = tmp_path / "nocov"
+    docs.mkdir()
+    (docs / "fidus.yaml").write_text(
+        f"sources: [{{path: {project['app']}, alias: app}}]\nllm: {{provider: fake}}\n"
+        "limits: {init_coverage_target: 0.5}\n"
+    )
+    res = runner.invoke(cli, ["init", "-c", str(docs / "fidus.yaml"), "-y"])
+    assert res.exit_code == 0, res.output
+    assert "id: misc" not in (docs / "fidus.outline.yaml").read_text()

@@ -177,6 +177,8 @@ class HeuristicFakeProvider:
     # -- init -------------------------------------------------------------------------------
     def _outline(self, messages: list[Message]) -> Completion:
         brief = _brief(messages)
+        if brief.startswith("Coverage repair"):
+            return self._repair_outline(brief)
         aliases = re.findall(r"^### Repository `([a-z0-9_-]+)`", brief, re.M) or ["src"]
         parts: list[dict[str, Any]] = []
         prev: list[str] = []
@@ -205,6 +207,26 @@ class HeuristicFakeProvider:
         return fake_tool_call(
             "propose_outline", "o1", version=1, title="Project Handbook", parts=parts
         )
+
+    def _repair_outline(self, brief: str) -> Completion:
+        m = re.search(r"```json\n(.*?)\n```", brief, re.S)
+        outline = json.loads(m.group(1)) if m else {}
+        locs = re.findall(r"^- ([a-z0-9_-]+:[^\s]+)", brief, re.M)
+        sources = [loc + "**" if loc.endswith("/") else loc for loc in locs]
+        last = outline["parts"][-1]
+        prev = last["chapters"][-1]["id"]
+        last["chapters"].append(
+            {
+                "id": "misc",
+                "title": "Everything Else",
+                "path": "misc/01-everything-else.md",
+                "level": "advanced",
+                "summary": "Remaining areas.",
+                "sources": sources,
+                "prerequisites": [prev],
+            }
+        )
+        return fake_tool_call("propose_outline", "o2", **outline)
 
     # -- triage (no tools: JSON reply) -------------------------------------------------------
     def _triage(self, messages: list[Message]) -> Completion:

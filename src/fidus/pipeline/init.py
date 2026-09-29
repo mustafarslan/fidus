@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections import Counter
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from fidus.config.loader import dump_yaml, outline_path
 from fidus.config.outline import Outline
 from fidus.errors import FidusError
 from fidus.log import get_logger
+from fidus.mapping.globs import ChapterMatcher
 from fidus.pipeline.session import Options, Session
 from fidus.sources.filters import SourceFilter
 
@@ -85,6 +87,56 @@ def build_digest(session: Session) -> tuple[str, int]:
     return "\n\n".join(sections), total
 
 
+def outline_coverage(session: Session, outline: Outline) -> tuple[float, list[str]]:
+    """Share of (filtered) source files matched by some chapter glob, plus the uncovered ones."""
+    matcher = ChapterMatcher(outline)
+    total, uncovered = 0, []
+    for src in session.cfg.sources:
+        flt = SourceFilter(src)
+        files = [f for f in iter_files(session.clone_sources()[src.name].root) if flt.accepts(f)]
+        total += len(files)
+        uncovered += [f"{src.name}:{f}" for f in matcher.coverage(src.name, files)[1]]
+    return (1.0 if total == 0 else (total - len(uncovered)) / total), uncovered
+
+
+def summarize_paths(paths: list[str], limit: int = 40) -> str:
+    """Group uncovered files by directory so the repair prompt stays short."""
+    by_dir: dict[str, list[str]] = {}
+    for p in paths:
+        alias, path = p.split(":", 1)
+        key = f"{alias}:{path.rsplit('/', 1)[0]}/" if "/" in path else p
+        by_dir.setdefault(key, []).append(p)
+    lines = []
+    for key, items in sorted(by_dir.items(), key=lambda kv: -len(kv[1]))[:limit]:
+        lines.append(f"- {key}" + (f"  ({len(items)} files)" if key.endswith("/") else ""))
+    if len(by_dir) > limit:
+        lines.append(f"- … and {len(by_dir) - limit} more locations")
+    return "\n".join(lines)
+
+
+def _repair(
+    session: Session, outline: Outline, coverage: float, uncovered: list[str]
+) -> Outline | None:
+    ctx = session.make_context("init", None, [])
+    budget = Budget(max_turns=15, max_input_tokens=300_000, max_output_tokens=20_000)
+    brief = "Coverage repair\n\n" + render(
+        "outline_repair",
+        coverage=f"{coverage:.0%}",
+        uncovered=summarize_paths(uncovered),
+        outline_json=json.dumps(outline.model_dump(mode="json"), indent=1),
+    )
+    result = run_episode(
+        ctx,
+        session.provider(),
+        budget,
+        brief=brief,
+        max_tokens=session.cfg.llm.max_output_tokens,
+        temperature=session.cfg.llm.temperature,
+        context_window=session.cfg.llm.context_window,
+    )
+    return result.outline
+
+
 def propose_outline(opts: Options, *, title: str | None = None) -> tuple[Outline, Path]:
     session = Session.open(opts, need_outline=False, need_git=False)
     try:
@@ -114,12 +166,26 @@ def propose_outline(opts: Options, *, title: str | None = None) -> tuple[Outline
             raise FidusError(
                 f"the model did not produce a valid outline ({result.status}: {result.error})"
             )
+        outline = result.outline
+        coverage, uncovered = outline_coverage(session, outline)
+        coverage_target = session.cfg.limits.init_coverage_target
+        if uncovered and coverage < coverage_target:
+            log.info(
+                "outline covers %.0f%% of files (target %.0f%%); asking for a repair",
+                coverage * 100,
+                coverage_target * 100,
+            )
+            repaired = _repair(session, outline, coverage, uncovered)
+            if repaired is not None:
+                new_cov, _ = outline_coverage(session, repaired)
+                if new_cov > coverage:
+                    log.info("repaired outline covers %.0f%% of files", new_cov * 100)
+                    outline = repaired
         path = outline_path(session.cfg, session.opts.config_path.resolve())
         path.write_text(
-            dump_yaml(result.outline.model_dump(mode="json"), header=OUTLINE_HEADER),
-            encoding="utf-8",
+            dump_yaml(outline.model_dump(mode="json"), header=OUTLINE_HEADER), encoding="utf-8"
         )
-        log.info("wrote %s (%d chapters)", path, sum(1 for _ in result.outline.chapters()))
-        return result.outline, path
+        log.info("wrote %s (%d chapters)", path, sum(1 for _ in outline.chapters()))
+        return outline, path
     finally:
         session.close()
