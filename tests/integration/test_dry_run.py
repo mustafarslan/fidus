@@ -221,3 +221,50 @@ def test_triage_cache_skips_repeat_calls(
     shutil.copy(project["root"] / "r1/state.json", project["docs"] / ".fidus/state.json")
     run(Options(project["config"], dry_run=True, output=project["root"] / "r2"))
     assert len(calls) == 1
+
+
+def test_bootstrap_then_benchmark_offline(project: dict[str, Path], capsys) -> None:  # type: ignore[no-untyped-def]
+    """The whole benchmark pipeline runs in CI with the offline fake (plumbing, not quality)."""
+    from fidus.bench import accuracy
+
+    out = project["root"] / "bench"
+    rep = bootstrap(Options(project["config"], dry_run=True, output=out))
+    assert not rep.failed
+    # Give the fake-written chapters a citation so the fake judge has something to verify.
+    ch = out / "docs/part-2/01-auth.md"
+    ch.write_text(ch.read_text() + "\nSee `app:src/auth/login.py`.\n")
+    assert accuracy.main([str(out / "docs"), "-c", str(project["config"])]) == 0
+    report = json.loads((out / "accuracy.json").read_text())
+    assert report["chapters_judged"] >= 1 and report["score"] == 1.0
+    # Baseline comparison: identical -> 0; a much better baseline -> exit 1.
+    assert (
+        accuracy.main(
+            [
+                str(out / "docs"),
+                "-c",
+                str(project["config"]),
+                "--out",
+                str(out / "a2.json"),
+                "--baseline",
+                str(out / "accuracy.json"),
+            ]
+        )
+        == 0
+    )
+    better = dict(report, score=1.5)
+    (out / "better.json").write_text(json.dumps(better))
+    assert (
+        accuracy.main(
+            [
+                str(out / "docs"),
+                "-c",
+                str(project["config"]),
+                "--out",
+                str(out / "a3.json"),
+                "--baseline",
+                str(out / "better.json"),
+            ]
+        )
+        == 1
+    )
+    assert "FAIL: score dropped" in capsys.readouterr().out

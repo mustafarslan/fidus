@@ -185,6 +185,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--base-url")
     ap.add_argument("--max-claims", type=int, default=15)
     ap.add_argument("--out", type=Path)
+    ap.add_argument("--baseline", type=Path, help="Earlier accuracy.json to compare against.")
+    ap.add_argument(
+        "--max-drop",
+        type=float,
+        default=0.05,
+        help="With --baseline: exit 1 if the overall score drops by more than this (default 0.05).",
+    )
     args = ap.parse_args(argv)
 
     opts = Options(args.config, provider=args.provider, model=args.model, base_url=args.base_url)
@@ -200,6 +207,30 @@ def main(argv: list[str] | None = None) -> int:
             + (f"  ERROR: {ch['error']}" if ch["error"] else "")
         )
     print(f"overall score: {report['score']}  error rate: {report['error_rate']}  -> {out}")
+    if args.baseline:
+        return compare(report, json.loads(args.baseline.read_text(encoding="utf-8")), args.max_drop)
+    return 0
+
+
+def compare(report: dict[str, Any], baseline: dict[str, Any], max_drop: float) -> int:
+    """Print per-chapter score deltas; return 1 if the overall score dropped by > max_drop."""
+    before = {c["path"]: c["score"] for c in baseline.get("chapters", [])}
+    print("vs baseline:")
+    for ch in report["chapters"]:
+        old, new = before.get(ch["path"]), ch["score"]
+        if old is None or new is None:
+            print(f"  {ch['path']:<50} {'new' if old is None else 'n/a'}")
+        else:
+            print(f"  {ch['path']:<50} {old:.0%} -> {new:.0%} ({new - old:+.0%})")
+    old_s, new_s = baseline.get("score"), report["score"]
+    if old_s is None or new_s is None:
+        print("overall: not comparable")
+        return 0
+    delta = new_s - old_s
+    print(f"overall: {old_s:.3f} -> {new_s:.3f} ({delta:+.3f})")
+    if delta < -max_drop:
+        print(f"FAIL: score dropped by more than {max_drop}")
+        return 1
     return 0
 
 
