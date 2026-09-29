@@ -170,6 +170,12 @@ def init(
     write_workflow: Annotated[
         bool, typer.Option("--write-workflow", help="Also write .github/workflows/fidus.yml.")
     ] = False,
+    auth: Annotated[
+        str,
+        typer.Option(
+            help="Workflow auth: app (GitHub App, recommended) or github-token (zero setup)."
+        ),
+    ] = "app",
     config_only: Annotated[
         bool, typer.Option("--config-only", help="Only write fidus.yaml; skip the outline.")
     ] = False,
@@ -191,6 +197,7 @@ def init(
             docs_dir=docs_dir,
             title=title,
             write_workflow=write_workflow,
+            auth=auth,
             config_only=config_only,
             interactive=not non_interactive and sys.stdin.isatty(),
             force=force,

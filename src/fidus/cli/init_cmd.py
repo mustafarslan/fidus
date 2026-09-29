@@ -24,6 +24,8 @@ KEY_ENVS = {
     "openai": "OPENAI_API_KEY",
 }
 
+WORKFLOW_TEMPLATES = {"app": "workflow.yml", "github-token": "workflow-github-token.yml"}
+
 CONFIG_HEADER = """\
 Fidus configuration. Reference: https://github.com/mustafarslan/fidus/blob/master/docs/configuration.md
 Secrets never go in this file: the LLM key is read from the env var named in llm.api_key_env,
@@ -70,6 +72,7 @@ def run_init(
     docs_dir: str,
     title: str | None,
     write_workflow: bool,
+    auth: str = "app",
     config_only: bool,
     interactive: bool,
     force: bool,
@@ -111,6 +114,8 @@ def run_init(
         config.write_text(dump_yaml(data, header=CONFIG_HEADER), encoding="utf-8")
         console.print(f"[green]wrote[/] {config}")
     cfg = load_config(config)  # validates what we just wrote
+    if auth not in WORKFLOW_TEMPLATES:
+        raise ConfigError(f"--auth must be one of: {', '.join(WORKFLOW_TEMPLATES)}")
 
     if write_workflow:
         wf = config.parent / ".github" / "workflows" / "fidus.yml"
@@ -120,7 +125,7 @@ def run_init(
             wf.parent.mkdir(parents=True, exist_ok=True)
             text = (
                 resources.files("fidus.templates")
-                .joinpath("workflow.yml")
+                .joinpath(WORKFLOW_TEMPLATES[auth])
                 .read_text(encoding="utf-8")
             )
             key_env = cfg.llm.resolved_api_key_env or "OPENAI_API_KEY"
