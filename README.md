@@ -167,7 +167,7 @@ jobs:
       - id: bot   # the App's bot user id, so commits are attributed to it
         env: { GH_TOKEN: "${{ steps.app-token.outputs.token }}", SLUG: "${{ steps.app-token.outputs.app-slug }}" }
         run: echo "id=$(gh api "/users/${SLUG}%5Bbot%5D" --jq .id)" >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { token: "${{ steps.app-token.outputs.token }}", fetch-depth: 0, persist-credentials: false }
       - uses: mustafarslan/fidus@v1
         with:
@@ -196,7 +196,7 @@ To bootstrap from CI instead of locally, add a temporary step, or a second `work
 This is fine for trying Fidus out or for a personal project. Create a **fine-grained personal access token** with access to the source repositories and the docs repository, with *Contents: Read and write*, *Pull requests: Read and write* and *Metadata: Read*. Store it as the secret `FIDUS_GITHUB_TOKEN`, then replace the `create-github-app-token` step:
 
 ```yaml
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { token: "${{ secrets.FIDUS_GITHUB_TOKEN }}", fetch-depth: 0 }
       - uses: mustafarslan/fidus@v1
         with:
