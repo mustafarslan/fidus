@@ -189,7 +189,9 @@ def _advance_cursors(session: Session, state: State, triggers: list[Trigger]) ->
 
 def _chapter_mapper(
     session: Session, outline: Outline, triggers: list[Trigger]
-) -> Callable[[str, str], list[str]]:
+) -> tuple[Callable[[str, str], list[str]], dict[str, str]]:
+    """Map files to chapters by glob, falling back to LLM triage. Also returns the triage
+    decisions (alias:path -> chapter) so the PR can suggest globs for them."""
     matcher = ChapterMatcher(outline)
     unmapped = sorted(
         {
@@ -212,7 +214,7 @@ def _chapter_mapper(
         c = extra.get(f"{alias}:{path}")
         return [c] if c else []
 
-    return chapters_for
+    return chapters_for, extra
 
 
 def _retry_items(state: State, alias_of: Callable[[str], str]) -> dict[str, list[Trigger]]:
@@ -240,7 +242,9 @@ def _record(
     audit_chapters: list[str],
     rotation_index: int,
     did_audit: bool,
+    triaged: dict[str, str] | None = None,
 ) -> None:
+    triaged = triaged or {}
     now = session.now
     pending = state.pending
     pending.opened_at = pending.opened_at or now
@@ -299,6 +303,9 @@ def _record(
             existing[key].chapters = {}
     for t in triggers:
         existing[t.key] = _to_pending(t, unmapped_files=plan.unmapped.get(t.key, []))
+        existing[t.key].triaged = {
+            k: triaged[k] for f in t.files if (k := f"{t.alias}:{f.path}") in triaged
+        }
     for chapter_id, r in by_chapter.items():
         item = items.get(chapter_id)
         if item is None:
@@ -497,7 +504,10 @@ def _run(session: Session, mode: RunMode) -> RunReport:
             ts = [pending_triggers[p.key] for p in state.pending.triggers if cid in p.chapters]
             rebuild.setdefault(cid, []).extend(ts)
 
-    chapters_for = _chapter_mapper(session, outline, triggers) if triggers else (lambda a, p: [])
+    chapters_for: Callable[[str, str], list[str]] = lambda a, p: []  # noqa: E731
+    triaged: dict[str, str] = {}
+    if triggers:
+        chapters_for, triaged = _chapter_mapper(session, outline, triggers)
     plan = build_plan(
         outline=outline,
         triggers=triggers,
@@ -544,6 +554,7 @@ def _run(session: Session, mode: RunMode) -> RunReport:
         audit_chapters=audit_chapters,
         rotation_index=rotation,
         did_audit=do_audit,
+        triaged=triaged,
     )
     write_state(session.work_root, state)
 
