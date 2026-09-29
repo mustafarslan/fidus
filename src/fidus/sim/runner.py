@@ -35,6 +35,7 @@ class DayResult:
     retry: list[str] = field(default_factory=list)
     cache_entries: int = 0
     checks: list[tuple[str, bool]] = field(default_factory=list)
+    quality: list[tuple[str, bool]] = field(default_factory=list)  # expect_live (real models only)
     stderr_tail: str = ""
 
 
@@ -181,7 +182,8 @@ class Simulation:
         cache = self.world.read(self.docs, "fidus/cache", "triage-cache.json")
         result.cache_entries = len(json.loads(cache)["entries"]) if cache else 0
 
-    def check(self, result: DayResult, expect: dict[str, Any]) -> None:
+    def check(self, result: DayResult, expect: dict[str, Any], *, into: str = "checks") -> None:
+        target: list[tuple[str, bool]] = getattr(result, into)
         for key, want in (expect or {}).items():
             if key == "pr":
                 ok = result.pr.startswith("open") if want == "open" else result.pr == "none"
@@ -207,7 +209,7 @@ class Simulation:
                 ok = sorted(result.retry) == sorted(want)
             else:
                 ok = False
-            result.checks.append((f"{key} == {want!r}", ok))
+            target.append((f"{key} == {want!r}", ok))
 
     def _chapter_text(self, chapter_id: str) -> str:
         ref = "fidus/sync" if self.gh.ref_sha(self.docs, "fidus/sync") else self.gh.default_branch
@@ -282,6 +284,8 @@ class Simulation:
             res.stderr_tail = "\n".join(err.strip().splitlines()[-6:]) if code not in (0, 3) else ""
             self.snapshot(res, before)
             self.check(res, spec.get("expect") or {})
+            if not self.strict:  # model-quality checks: meaningless for the stub-writing fake
+                self.check(res, spec.get("expect_live") or {}, into="quality")
             days.append(res)
         final_ref = (
             "fidus/sync" if self.gh.ref_sha(self.docs, "fidus/sync") else self.gh.default_branch

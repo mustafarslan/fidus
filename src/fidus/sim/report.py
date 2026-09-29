@@ -13,12 +13,16 @@ def render(sim: SimResult) -> str:
     )
     passed = sum(ok for d in sim.days for _, ok in d.checks)
     total = sum(len(d.checks) for d in sim.days)
+    q_passed = sum(ok for d in sim.days for _, ok in d.quality)
+    q_total = sum(len(d.quality) for d in sim.days)
+    quality = f"{q_passed}/{q_total} met" if q_total else "not run (fake model)"
     out = [
         f"# Fidus simulation: {sim.name}",
         "",
         f"- **Model:** `{sim.model}`",
         f"- **Mode:** {mode}",
         f"- **Expectations:** {passed}/{total} met",
+        f"- **Quality checks (expect_live):** {quality}",
         f"- **Unimplemented API calls hit:** {', '.join(sorted(set(sim.unhandled))) or 'none'}",
         "",
         "| Day | Date | Morning | Merged into sources | Night | Fidus PR after | Chapters changed | ✓ |",
@@ -57,6 +61,11 @@ def render(sim: SimResult) -> str:
             out += [
                 "- **Expectations:** "
                 + " · ".join(f"{'✅' if ok else '❌'} `{n}`" for n, ok in d.checks)
+            ]
+        if d.quality:
+            out += [
+                "- **Quality (expect_live):** "
+                + " · ".join(f"{'✅' if ok else '❌'} `{n}`" for n, ok in d.quality)
             ]
         if d.pr_body:
             out += [
