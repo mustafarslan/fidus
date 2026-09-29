@@ -38,6 +38,16 @@ class AuditBase(_M):
     rotation_index: int = 0
 
 
+class ChangedFileRef(_M):
+    path: str
+    status: str = "modified"
+    additions: int = 0
+    deletions: int = 0
+
+
+MAX_STORED_FILES = 50
+
+
 class PendingTrigger(_M):
     repo: str
     number: int | None = None
@@ -48,6 +58,9 @@ class PendingTrigger(_M):
     status: TriggerStatus = "pending"
     chapters: dict[str, str] = Field(default_factory=dict)  # chapter id -> reason
     unmapped_files: list[str] = Field(default_factory=list)
+    # Changed files (capped), so retries and rebuilds know what changed; diffs aren't stored.
+    files: list[ChangedFileRef] = Field(default_factory=list)
+    files_total: int = 0
 
     @property
     def key(self) -> str:

@@ -103,14 +103,24 @@ def test_failed_chapters_survive_a_merge(
     # The cursor moved past the PR, but the chapter is remembered in `base` (which survives a merge).
     assert state["base"]["retry"][0]["chapter"] == "auth"
     assert state["base"]["retry"][0]["triggers"][0]["title"] == "feat: mfa"
+    assert state["base"]["retry"][0]["triggers"][0]["files"][0]["path"] == "src/auth/login.py"
     assert state["pending"]["triggers"][0]["status"] == "failed"
 
     # "Merge": state lands on main; pending is dropped when read back, retry is not.
     shutil.copy(out / "state.json", project["docs"] / ".fidus/state.json")
     git(project["docs"], "commit", "-qam", "merge")
-    monkeypatch.setattr(sess, "make_provider", lambda *a, **k: HeuristicFakeProvider())
+    retry_briefs: list[str] = []
+
+    class Recording(HeuristicFakeProvider):
+        def complete(self, **kw):  # type: ignore[no-untyped-def]
+            if len(kw["messages"]) == 1:
+                retry_briefs.append(kw["messages"][0].text)
+            return super().complete(**kw)
+
+    monkeypatch.setattr(sess, "make_provider", lambda *a, **k: Recording())
     rep = run(Options(project["config"], dry_run=True, output=project["root"] / "out2"))
     assert [(e.mode, e.chapter_id) for e in rep.episodes] == [("sync", "auth")]  # retried
+    assert "app:src/auth/login.py" in retry_briefs[0]  # the retry knows what changed
     state2 = json.loads((project["root"] / "out2/state.json").read_text())
     assert state2["base"]["retry"] == []
 

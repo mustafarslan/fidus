@@ -201,6 +201,7 @@ class GetPRTool(Tool):
             parts.append(f"- {f.status} {t.alias}:{f.path} (+{f.additions}/-{f.deletions})")
         if t.omitted_files:
             parts.append(f"- ... {t.omitted_files} more files omitted (filtered or too large)")
+        parts.extend(f"Note: {n}" for n in t.notes)
         parts.append("")
         for f in t.files:
             if f.patch:
