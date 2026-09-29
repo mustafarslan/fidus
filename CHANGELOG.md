@@ -15,3 +15,29 @@ The first release.
 - **Safeguards:** a sandbox for the agent's reads and writes, secret scanning on every write,
   `fidus:keep` blocks for human-owned prose, and doc validation (frontmatter, links, citations).
 - **Distribution:** a composite GitHub Action (`mustafarslan/fidus@v1`) and a Dockerfile.
+
+### Improvements since the first merge
+
+- **Briefs name existing problems:** episodes are told about validation problems already in a
+  chapter (stale line-number citations, broken links) and fix them, even when nothing else
+  changes (#7).
+- **`init` closes coverage gaps:** one repair round runs when chapter globs cover less than
+  `limits.init_coverage_target` of the files. Live, coverage went from 36% to 97% (#8).
+- **Retries keep their context:** retried and rebuilt changes keep their changed-file lists (#9).
+- **Workflow template stays current:** the template users copy is kept in sync with the repo's
+  action versions, enforced by a test (#10).
+- **`fidus doctor` checks access:** it verifies push access to the docs repo and that the GitHub
+  App is installed on every repository (#11).
+- **Atomic writes:** chapters, the TOC, state and the outline are written atomically (#17).
+- **Local runs restore your branch:** local runs return the clone to the branch it started on
+  (#18).
+- **Outline comments survive:** outline proposal PRs keep the comments and formatting in
+  `fidus.outline.yaml` (#19).
+- **Failing chapters stop retrying:** a chapter that fails `limits.max_retry_attempts` times is
+  quarantined and flagged "Needs a human" in the PR (#20).
+- **Prerequisites first:** chapters run after their prerequisites in the same run (#21).
+- **Glob suggestions:** the PR suggests copy-pasteable outline globs for uncovered files (#22).
+- **Triage cache:** triage decisions are cached across runs, from the first run that opens a PR
+  onward, and reset when the outline changes (#23).
+- **`tool_protocol: auto` is the default:** a turn is retried through the JSON protocol when a
+  server drops a tool call.
