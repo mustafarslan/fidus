@@ -41,4 +41,19 @@ The design and its rationale are in [docs/design.md](docs/design.md).
   `src/fidus/templates/workflow.yml` (then copy it to `examples/workflows/fidus.yml`), the README
   and `docs/github-app.md` in the same PR.
 - **Changing prompts:** they shape every user's docs. Explain the motivation in the PR and include
-  before/after chapter excerpts from a real run.
+  before/after chapter excerpts from a real run, plus accuracy benchmark numbers:
+
+  ```bash
+  fidus bootstrap -c path/to/fidus.yaml --dry-run --output out/   # before and after your change
+  python -m fidus.bench.accuracy out/docs -c path/to/fidus.yaml [--provider P --model M]
+  ```
+
+  - **What it does:** the benchmark asks a judge model to check each chapter's claims against the
+    source files it cites.
+  - **Evidence check:** supported and contradicted verdicts must quote verbatim source evidence,
+    which is checked mechanically.
+  - **Output:** it writes `accuracy.json` with a score and an error rate.
+  - **Choose the judge carefully:** use one at least as strong as the writer. In our tests a weak
+    judge scored gemma4's book 97% before strict evidence checking and 87% after (catching a
+    `checkout` vs `checkout_new` error). It still misses invented details inside hypothetical
+    "example scenarios".
