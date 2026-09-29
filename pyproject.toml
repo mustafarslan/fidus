@@ -44,6 +44,8 @@ fidus = "fidus.cli.app:main"
 
 [project.urls]
 Homepage = "https://github.com/mustafarslan/fidus"
+Documentation = "https://github.com/mustafarslan/fidus/blob/master/docs/tutorial.md"
+Changelog = "https://github.com/mustafarslan/fidus/blob/master/CHANGELOG.md"
 Issues = "https://github.com/mustafarslan/fidus/issues"
 
 [dependency-groups]

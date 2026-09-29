@@ -5,7 +5,7 @@
 [![PyPI](https://img.shields.io/pypi/v/fidus.svg)](https://pypi.org/project/fidus/)
 [![Python](https://img.shields.io/pypi/pyversions/fidus.svg)](https://pypi.org/project/fidus/)
 [![CI](https://github.com/mustafarslan/fidus/actions/workflows/ci.yml/badge.svg)](https://github.com/mustafarslan/fidus/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/mustafarslan/fidus/blob/master/LICENSE)
 
 Fidus is an open-source documentation agent. Every night it looks at the pull requests merged
 into your repositories, updates the parts of your documentation they affect, and opens **one tidy
@@ -58,8 +58,8 @@ fidus bootstrap --dry-run --output ./preview     # writes the whole book into ./
 ```
 
 Open `preview/docs/` to read your book and `preview/pr-body.md` to see the pull request Fidus
-would open. The [15-minute tutorial](docs/tutorial.md) walks through this step by step. If you're
-curious how Fidus behaves over weeks, the [simulator](docs/simulation.md) plays out eight days of a
+would open. The [15-minute tutorial](https://github.com/mustafarslan/fidus/blob/master/docs/tutorial.md) walks through this step by step. If you're
+curious how Fidus behaves over weeks, the [simulator](https://github.com/mustafarslan/fidus/blob/master/docs/simulation.md) plays out eight days of a
 team's life in a few minutes.
 
 ## Contents
@@ -139,7 +139,7 @@ secret, and opens the install page. Install the App on **the docs repo and every
 add your model key as a secret (for example `ANTHROPIC_API_KEY`).
 
 Prefer to click through it yourself, or need a two-App least-privilege setup or GitHub Enterprise
-Server? [docs/github-app.md](docs/github-app.md) has you covered.
+Server? [docs/github-app.md](https://github.com/mustafarslan/fidus/blob/master/docs/github-app.md) has you covered.
 
 ### 3. Install Fidus and draft the outline
 
@@ -179,7 +179,7 @@ once with `command: bootstrap`.
 ### 5. Turn on the nightly run
 
 `fidus init --write-workflow` created `.github/workflows/fidus.yml`; a copy lives in
-[`examples/workflows/fidus.yml`](examples/workflows/fidus.yml). Commit it, then run it once from
+[`examples/workflows/fidus.yml`](https://github.com/mustafarslan/fidus/blob/master/examples/workflows/fidus.yml). Commit it, then run it once from
 *Actions → Fidus nightly docs sync → Run workflow* with **dry-run** ticked. From then on it runs
 every night at 00:00 UTC.
 
@@ -219,7 +219,7 @@ A few extras:
 - **Refusal fallbacks.** On Claude models that support them, a request declined by a safety filter
   is retried on Anthropic's recommended fallback model.
 
-See [docs/providers.md](docs/providers.md) for details.
+See [docs/providers.md](https://github.com/mustafarslan/fidus/blob/master/docs/providers.md) for details.
 
 ## Configuration and the outline
 
@@ -266,8 +266,8 @@ parts:
 - **Suggestions, not surprises.** Restructuring ideas from the audit appear in the PR (or as a
   separate outline PR, if you prefer).
 
-The complete reference is in [docs/configuration.md](docs/configuration.md), with every option in
-[`examples/fidus.yaml`](examples/fidus.yaml).
+The complete reference is in [docs/configuration.md](https://github.com/mustafarslan/fidus/blob/master/docs/configuration.md), with every option in
+[`examples/fidus.yaml`](https://github.com/mustafarslan/fidus/blob/master/examples/fidus.yaml).
 
 ## Your daily review
 
@@ -311,7 +311,7 @@ Fidus is tested the way it's used:
   against a local stand-in for GitHub over eight scripted days: features shipping, a reviewer away,
   hand edits, a merge conflict, a rejected PR, a new chapter and the weekly audit. It runs in CI on
   every change, and with a real model it shows how the docs actually evolve.
-  [Read more](docs/simulation.md).
+  [Read more](https://github.com/mustafarslan/fidus/blob/master/docs/simulation.md).
 - **An accuracy check.** `python -m fidus.bench.accuracy DOCS_DIR -c fidus.yaml` asks a judge model
   to verify each chapter's claims against the code it cites, with quoted evidence.
 - **A thorough test suite,** including a multi-night lifecycle against real git repositories.
@@ -327,7 +327,7 @@ Fidus is tested the way it's used:
   short-lived token.
 - **People have the final say.** Nothing reaches your default branch until someone merges it.
 
-More in [docs/security.md](docs/security.md).
+More in [docs/security.md](https://github.com/mustafarslan/fidus/blob/master/docs/security.md).
 
 ## FAQ
 
@@ -344,19 +344,19 @@ many areas as you like.
 **GitHub Enterprise Server?** Supported: set `github.api_url` and `github.server_url`.
 
 **Something doesn't look right?** Run `fidus doctor`, and see
-[docs/troubleshooting.md](docs/troubleshooting.md).
+[docs/troubleshooting.md](https://github.com/mustafarslan/fidus/blob/master/docs/troubleshooting.md).
 
 ## Contributing
 
-Contributions are very welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) to get started:
+Contributions are very welcome. See [CONTRIBUTING.md](https://github.com/mustafarslan/fidus/blob/master/CONTRIBUTING.md) to get started:
 
 ```bash
 uv sync --all-extras
 uv run pytest && uv run ruff check && uv run mypy
 ```
 
-The design notes are in [docs/design.md](docs/design.md).
+The design notes are in [docs/design.md](https://github.com/mustafarslan/fidus/blob/master/docs/design.md).
 
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/mustafarslan/fidus/blob/master/LICENSE)
