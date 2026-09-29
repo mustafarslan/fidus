@@ -41,6 +41,8 @@ The first release.
   (#23). They are kept on a separate `fidus/cache` branch, so quiet nights that open no PR keep
   them too (#35).
 - **`fidus state clear-retry`:** drop retry entries or lift a quarantine (#36).
+- **Zero-setup mode:** a `GITHUB_TOKEN` workflow (`fidus init --write-workflow --auth
+  github-token`) for public sources or same-repo docs (#60).
 - **`fidus setup-app`:** creates the GitHub App in one click with GitHub's App-manifest flow and
   saves its credentials to the docs repo with `gh` (#59).
 - **Simulator:** `python -m fidus.sim SCENARIO` runs the real CLI against a local fake GitHub over
