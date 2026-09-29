@@ -41,6 +41,11 @@ The first release.
   (#23). They are kept on a separate `fidus/cache` branch, so quiet nights that open no PR keep
   them too (#35).
 - **`fidus state clear-retry`:** drop retry entries or lift a quarantine (#36).
+- **Simulator:** `python -m fidus.sim SCENARIO` runs the real CLI against a local fake GitHub over
+  scripted days (reviewer merges and closes, conflicts, outline edits, a simulated clock), with a
+  Markdown timeline report. The built-in 8-day scenario runs in CI (#49).
+- **Bootstrap branch cleanup:** the merged `fidus/bootstrap` branch is cleaned up by the next
+  nightly run.
 - **Accuracy benchmark:** `python -m fidus.bench.accuracy` has a judge model check chapters
   against their cited sources, with mechanical verification of verbatim evidence (#37).
 - **`tool_protocol: auto` is the default:** a turn is retried through the JSON protocol when a

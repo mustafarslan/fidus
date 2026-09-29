@@ -50,7 +50,13 @@ class FakeGitHub:
         branch = head.split(":", 1)[-1]
         state = request.url.params.get("state", "open")
         found = [
-            {**p, "head": {"ref": p["head"], "sha": remote_sha(self.remote, p["head"])}}
+            {
+                **p,
+                "head": {
+                    "ref": p["head"],
+                    "sha": p.get("frozen_sha") or remote_sha(self.remote, p["head"]),
+                },
+            }
             for p in self.prs
             if p["state"] == state and p["head"] == branch
         ]
@@ -84,6 +90,13 @@ class FakeGitHub:
         git(self.remote, "update-ref", "-d", f"refs/heads/{branch}")
         return httpx.Response(204)
 
+    def close(self, pr: dict[str, Any], merged: bool = False) -> None:
+        """Like GitHub: a closed PR's head sha is frozen at close time."""
+        pr["frozen_sha"] = remote_sha(self.remote, pr["head"])
+        pr["state"] = "closed"
+        if merged:
+            pr["merged_at"] = "2026-09-27T12:00:00Z"
+
     def open_pr(self, head: str) -> dict[str, Any] | None:
         return next((p for p in self.prs if p["state"] == "open" and p["head"] == head), None)
 
@@ -104,8 +117,7 @@ def merge_into_main(root: Path, remote: Path, branch: str, gh: FakeGitHub) -> No
     git(helper, "push", "-q", "origin", "main")
     pr = gh.open_pr(branch)
     assert pr is not None
-    pr["state"] = "closed"
-    pr["merged_at"] = "2026-09-27T12:00:00Z"
+    gh.close(pr, merged=True)
 
 
 def human_edit(root: Path, remote: Path, branch: str, path: str, text: str) -> None:
@@ -224,7 +236,7 @@ def test_rolling_branch_lifecycle(world: dict[str, Any]) -> None:
         assert "Fidus is paused" in gh.open_pr("fidus/sync")["body"]  # type: ignore[index]
 
         # The reviewer closes the PR without merging -> its changes are skipped, not re-opened.
-        gh.open_pr("fidus/sync")["state"] = "closed"  # type: ignore[index]
+        gh.close(gh.open_pr("fidus/sync"))  # type: ignore[arg-type]
         rejected_sha = remote_sha(remote, "fidus/sync")
         r6 = do_run(night.checkout(remote))
         assert r6.noop and r6.triggers_collected == 0

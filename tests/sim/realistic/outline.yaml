@@ -1,0 +1,25 @@
+version: 1
+title: "The Acme Platform"
+description: "How the Acme order API and web client work, from first principles to internals."
+parts:
+  - id: foundations
+    title: "Part I: Foundations"
+    chapters:
+      - {id: overview, title: "What Acme Is", path: part-1/01-overview.md, level: fundamentals,
+         summary: "The system at a glance: API, web client, and how a request flows.",
+         sources: ["api:README.md", "api:src/acme_api/app.py", "web:README.md", "web:src/main.ts"]}
+      - {id: data-model, title: "Orders and Users", path: part-1/02-data-model.md, level: fundamentals,
+         summary: "The Order and User entities and the order status lifecycle.",
+         sources: ["api:src/acme_api/models/**"], prerequisites: [overview]}
+  - id: core
+    title: "Part II: Core Mechanisms"
+    chapters:
+      - {id: auth, title: "Authentication", path: part-2/01-auth.md, level: intermediate,
+         summary: "Bearer tokens: issuing, verifying, expiry, and the middleware.",
+         sources: ["api:src/acme_api/auth/**", "api:src/acme_api/config.py"], prerequisites: [overview]}
+      - {id: orders-api, title: "The Orders API", path: part-2/02-orders-api.md, level: intermediate,
+         summary: "Order endpoints and request handling.",
+         sources: ["api:src/acme_api/routes/**"], prerequisites: [data-model, auth]}
+      - {id: web-client, title: "The Web Client", path: part-2/03-web-client.md, level: intermediate,
+         summary: "Sessions, the API client, and the orders page.",
+         sources: ["web:src/**"], prerequisites: [auth]}

@@ -1,0 +1,23 @@
+name: MVP (bootstrap + one sync)
+start: 2026-03-02
+docs_repo: acme/docs
+sources:
+  - {repo: acme/api, alias: api, branch: main, fixture: realistic/api, include: ["src/**", "README.md"], exclude: ["**/tests/**"]}
+  - {repo: acme/web, alias: web, branch: main, fixture: realistic/web, include: ["src/**", "README.md"]}
+outline: realistic/outline.yaml
+days:
+  - day: 0
+    bootstrap: true
+    expect: {pr: open, exit: 0}
+  - day: 1
+    review: merge
+    merges:
+      - repo: acme/api
+        title: "Add refresh tokens"
+        files:
+          src/acme_api/auth/tokens.py: |
+            """Bearer tokens: HMAC-signed, with an expiry, plus refresh."""
+
+            def refresh_token(token: str) -> str:
+                return token
+    expect: {pr: open, changed: [auth], exit: 0}

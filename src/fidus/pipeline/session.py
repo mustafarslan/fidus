@@ -50,6 +50,16 @@ class Options:
     now: datetime | None = None
 
 
+def _env_now() -> datetime | None:
+    """Testing/simulation hook: FIDUS_NOW=<ISO time> pins the run's clock (audit schedule, state
+    timestamps). Never set it in production."""
+    raw = os.environ.get("FIDUS_NOW")
+    if not raw:
+        return None
+    dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+
+
 def slug_from_remote(url: str) -> str | None:
     m = re.search(r"[:/]([\w.-]+/[\w.-]+?)(?:\.git)?/?$", url.strip())
     return m.group(1) if m else None
@@ -90,7 +100,7 @@ class Session:
             cfg.llm.base_url = opts.base_url
         outline = load_outline(cfg, config_path) if need_outline else None
         repo_root = config_path.parent
-        now = opts.now or datetime.now(UTC)
+        now = opts.now or _env_now() or datetime.now(UTC)
         host = urlparse(cfg.github.server_url).netloc or "github.com"
         s = cls(opts, cfg, outline, repo_root, repo_root, now, host)
         s.token = docs_token()
