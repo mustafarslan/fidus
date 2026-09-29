@@ -95,11 +95,22 @@ class IncompleteEpisode(_M):
     quarantined: bool = False  # gave up after limits.max_retry_attempts; needs a human
 
 
+class TriageCache(_M):
+    """File -> chapter decisions from earlier triage calls; reset when the outline changes."""
+
+    outline_hash: str = ""
+    entries: dict[str, str | None] = Field(default_factory=dict)  # None = no documentation impact
+
+
+MAX_TRIAGE_CACHE = 2000
+
+
 class BaseState(_M):
     bootstrapped_at: datetime | None = None
     repos: dict[str, RepoCursor] = Field(default_factory=dict)
     audit: AuditBase = Field(default_factory=AuditBase)
     retry: list[IncompleteEpisode] = Field(default_factory=list)
+    triage_cache: TriageCache = Field(default_factory=TriageCache)
 
 
 class RunUsage(_M):

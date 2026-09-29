@@ -192,3 +192,32 @@ def test_init_skips_repair_when_coverage_is_enough(
     res = runner.invoke(cli, ["init", "-c", str(docs / "fidus.yaml"), "-y"])
     assert res.exit_code == 0, res.output
     assert "id: misc" not in (docs / "fidus.outline.yaml").read_text()
+
+
+def test_triage_cache_skips_repeat_calls(
+    project: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import fidus.pipeline.run as runmod
+    from fidus.llm.types import Usage
+
+    out = project["root"] / "boot"
+    bootstrap(Options(project["config"], dry_run=True, output=out))
+    shutil.copytree(out / "docs", project["docs"] / "docs")
+    (project["docs"] / ".fidus").mkdir()
+    shutil.copy(out / "state.json", project["docs"] / ".fidus/state.json")
+    commit(project["app"], {"tools/gen.py": "print(1)\n"}, "chore: tooling")
+    calls: list[list[str]] = []
+
+    def spy(files, *a, **k):  # type: ignore[no-untyped-def]
+        calls.append(list(files))
+        return {f: None for f in files}, Usage()  # confident "no documentation impact"
+
+    monkeypatch.setattr(runmod, "triage", spy)
+    run(Options(project["config"], dry_run=True, output=project["root"] / "r1"))
+    assert calls == [["app:tools/gen.py"]]
+    state = json.loads((project["root"] / "r1/state.json").read_text())
+    assert "app:tools/gen.py" in state["base"]["triage_cache"]["entries"]
+    # Deferred (no PR opened): "merge" only the cache and run again -> no second triage call.
+    shutil.copy(project["root"] / "r1/state.json", project["docs"] / ".fidus/state.json")
+    run(Options(project["config"], dry_run=True, output=project["root"] / "r2"))
+    assert len(calls) == 1

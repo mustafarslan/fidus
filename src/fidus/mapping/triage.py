@@ -63,8 +63,9 @@ def _in_dir(file: str, d: str) -> bool:
 
 def triage(
     files: list[str], outline: Outline, cfg: FidusConfig, provider: Provider
-) -> tuple[dict[str, str], Usage]:
-    """Return ({alias:path -> chapter id}, usage). Low-confidence or invalid results are omitted."""
+) -> tuple[dict[str, str | None], Usage]:
+    """Return ({alias:path -> chapter id, or None for a confident "no documentation impact"},
+    usage). Low-confidence or invalid results are omitted."""
     if not files:
         return {}, Usage()
     ids = {c.id for c in outline.chapters()}
@@ -94,17 +95,21 @@ def triage(
         log.warning("triage failed (%s); files stay unmapped", e)
         return {}, Usage()
     threshold = cfg.limits.triage_confidence_threshold
-    mapping: dict[str, str] = {}
+
+    def accepted(i: TriageItem) -> bool:
+        return i.confidence >= threshold and (i.chapter is None or i.chapter in ids)
+
+    mapping: dict[str, str | None] = {}
     dirs = {i.file: i for i in items if i.file.endswith("/")}
     for i in items:
-        if i.chapter in ids and i.confidence >= threshold and not i.file.endswith("/"):
+        if accepted(i) and not i.file.endswith("/"):
             mapping[i.file] = i.chapter
     # Expand collapsed directory answers back to files.
     for f in files:
         if f in mapping:
             continue
         for d, item in dirs.items():
-            if _in_dir(f, d) and item.chapter in ids and item.confidence >= threshold:
+            if _in_dir(f, d) and accepted(item):
                 mapping[f] = item.chapter
                 break
-    return mapping, c.usage
+    return {f: ch for f, ch in mapping.items() if f in set(files)}, c.usage

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable
 
 from fidus.agent.budget import RunBudget
@@ -28,6 +29,7 @@ from fidus.sources.local_source import is_ancestor, local_triggers
 from fidus.sources.trigger import ChangedFile, Trigger
 from fidus.state.models import (
     MAX_STORED_FILES,
+    MAX_TRIAGE_CACHE,
     ChangedFileRef,
     IncompleteEpisode,
     PendingAudit,
@@ -188,7 +190,7 @@ def _advance_cursors(session: Session, state: State, triggers: list[Trigger]) ->
 
 
 def _chapter_mapper(
-    session: Session, outline: Outline, triggers: list[Trigger]
+    session: Session, outline: Outline, triggers: list[Trigger], state: State
 ) -> tuple[Callable[[str, str], list[str]], dict[str, str]]:
     """Map files to chapters by glob, falling back to LLM triage. Also returns the triage
     decisions (alias:path -> chapter) so the PR can suggest globs for them."""
@@ -201,11 +203,23 @@ def _chapter_mapper(
             if not matcher.chapters_for(t.alias, f.path)
         }
     )
-    extra: dict[str, str] = {}
-    if unmapped:
-        log.info("triaging %d file(s) not covered by chapter globs", len(unmapped))
-        extra, usage = triage(unmapped, outline, session.cfg, session.triage_provider())
+    cache = state.base.triage_cache
+    outline_hash = hashlib.sha256(outline.model_dump_json().encode()).hexdigest()[:16]
+    if cache.outline_hash != outline_hash:  # chapters changed: earlier decisions may be wrong
+        cache.outline_hash, cache.entries = outline_hash, {}
+    extra: dict[str, str | None] = {f: cache.entries[f] for f in unmapped if f in cache.entries}
+    todo = [f for f in unmapped if f not in extra]
+    if extra:
+        log.info("triage cache: %d file(s) already decided", len(extra))
+    if todo:
+        log.info("triaging %d file(s) not covered by chapter globs", len(todo))
+        fresh, usage = triage(todo, outline, session.cfg, session.triage_provider())
         session.meter.add(usage)
+        extra.update(fresh)
+        cache.entries.update(fresh)
+        overflow = len(cache.entries) - MAX_TRIAGE_CACHE
+        for key in list(cache.entries)[: max(0, overflow)]:  # drop the oldest decisions
+            del cache.entries[key]
 
     def chapters_for(alias: str, path: str) -> list[str]:
         hits = matcher.chapters_for(alias, path)
@@ -214,7 +228,7 @@ def _chapter_mapper(
         c = extra.get(f"{alias}:{path}")
         return [c] if c else []
 
-    return chapters_for, extra
+    return chapters_for, {f: c for f, c in extra.items() if c is not None}
 
 
 def _retry_items(state: State, alias_of: Callable[[str], str]) -> dict[str, list[Trigger]]:
@@ -507,7 +521,7 @@ def _run(session: Session, mode: RunMode) -> RunReport:
     chapters_for: Callable[[str, str], list[str]] = lambda a, p: []  # noqa: E731
     triaged: dict[str, str] = {}
     if triggers:
-        chapters_for, triaged = _chapter_mapper(session, outline, triggers)
+        chapters_for, triaged = _chapter_mapper(session, outline, triggers, state)
     plan = build_plan(
         outline=outline,
         triggers=triggers,
