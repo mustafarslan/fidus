@@ -46,6 +46,8 @@ The design and its rationale are in [docs/design.md](docs/design.md).
   ```bash
   fidus bootstrap -c path/to/fidus.yaml --dry-run --output out/   # before and after your change
   python -m fidus.bench.accuracy out/docs -c path/to/fidus.yaml [--provider P --model M]
+  # save accuracy.json from the "before" run, then compare the "after" run against it:
+  python -m fidus.bench.accuracy out2/docs -c path/to/fidus.yaml --baseline before.json --max-drop 0.05
   ```
 
   - **What it does:** the benchmark asks a judge model to check each chapter's claims against the

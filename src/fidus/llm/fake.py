@@ -99,6 +99,8 @@ class HeuristicFakeProvider:
         temperature: float | None,
     ) -> Completion:
         names = {t.name for t in tools}
+        if not tools and "### Cited source files" in _brief(messages):
+            return self._judge(messages)
         if not tools:
             return self._triage(messages)
         if "propose_outline" in names:
@@ -227,6 +229,28 @@ class HeuristicFakeProvider:
             }
         )
         return fake_tool_call("propose_outline", "o2", **outline)
+
+    # -- accuracy judge (no tools: JSON reply) ------------------------------------------------
+    def _judge(self, messages: list[Message]) -> Completion:
+        """One verifiable claim per cited source: 'the chapter cites X', with the file's first
+        non-empty line as verbatim evidence. Exercises the benchmark pipeline offline."""
+        brief = _brief(messages)
+        claims = []
+        for src, body in re.findall(
+            r'<untrusted_data source="([^"]+)">\n(.*?)\n</untrusted_data>', brief, re.S
+        ):
+            if src.startswith("docs:"):
+                continue
+            first = next((ln.strip() for ln in body.splitlines() if ln.strip()), "")
+            if first:
+                claims.append(
+                    {
+                        "claim": f"The chapter cites {src}.",
+                        "verdict": "supported",
+                        "evidence": first,
+                    }
+                )
+        return fake_text(json.dumps({"claims": claims}))
 
     # -- triage (no tools: JSON reply) -------------------------------------------------------
     def _triage(self, messages: list[Message]) -> Completion:
