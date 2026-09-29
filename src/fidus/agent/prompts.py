@@ -69,8 +69,31 @@ def format_triggers(triggers: list[Trigger]) -> str:
     return wrap_untrusted("trigger-list", "\n".join(rows)) if rows else "(none)"
 
 
+def known_problems(ctx: EpisodeContext) -> str:
+    """Validation problems already present in the current chapter, as a brief section.
+
+    Validation otherwise only runs on writes, so problems in a chapter that needs no other
+    change (stale line-number citations, broken links, ...) would survive forever.
+    """
+    if not ctx.original_doc or ctx.chapter is None:
+        return ""
+    from fidus.agent.validate_doc import validate_chapter
+
+    problems = validate_chapter(ctx.original_doc, ctx)
+    if not problems:
+        return ""
+    items = "\n".join(f"- {p}" for p in problems)
+    return (
+        "### Known problems in this chapter\n"
+        "Validation found these problems in the current chapter. Fix them with a minimal edit and "
+        "call write_doc, even if nothing else needs to change:\n"
+        f"{items}\n\n"
+    )
+
+
 def chapter_brief(ctx: EpisodeContext, *, changes: str = "") -> str:
     values = _chapter_values(ctx)
+    values["known_problems"] = known_problems(ctx)
     if ctx.mode == "sync":
         return render("chapter_sync", triggers=format_triggers(ctx.triggers), **values)
     if ctx.mode == "audit":

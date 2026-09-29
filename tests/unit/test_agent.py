@@ -271,3 +271,19 @@ def test_bootstrap_done_without_write_is_refused_then_failed(
         ]
     )
     assert run(ctx2, provider2).status == "ok"
+
+
+def test_brief_lists_known_problems(tmp_path: Path, cfg: FidusConfig, outline: Outline) -> None:
+    from fidus.agent.prompts import chapter_brief
+
+    stale = GOOD_DOC + "\nOld cite `app:src/auth/login.py:12` and [gone](nope.md).\n"
+    ctx = make_ctx(tmp_path, cfg, outline, original_doc=stale)
+    brief = chapter_brief(ctx)
+    assert "### Known problems in this chapter" in brief
+    assert "line number" in brief and "broken relative link" in brief
+    for mode in ("audit", "consistency"):
+        ctx.mode = mode  # type: ignore[assignment]
+        assert "Known problems" in chapter_brief(ctx, changes="x")
+    clean = make_ctx(tmp_path / "c", cfg, outline, original_doc=GOOD_DOC)
+    assert "Known problems" not in chapter_brief(clean)
+    assert "$known_problems" not in chapter_brief(clean)

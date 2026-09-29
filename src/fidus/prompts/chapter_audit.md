@@ -19,5 +19,5 @@ excerpts, which must still match the source verbatim.
 4. Ideas about the book's structure go in `structure_suggestions` only. Never restructure the book
    yourself.
 
-### Current chapter content
+$known_problems### Current chapter content
 $current_doc
