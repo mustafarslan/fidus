@@ -173,6 +173,7 @@ class Limits(_Strict):
     search_max_results: int = 50
     triage_confidence_threshold: float = 0.6
     max_consistency_episodes: int = 6
+    init_coverage_target: float = 0.9  # init repairs the outline once if coverage is lower
 
 
 class GitHubConfig(_Strict):
