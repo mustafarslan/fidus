@@ -8,7 +8,7 @@ import re
 import shutil
 import tempfile
 import threading
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -292,9 +292,47 @@ class Session:
         if not jobs:
             return []
         self.clone_sources()  # before fanning out
+        ids = [j[1] for j in jobs]
+        blockers = self._in_run_prerequisites(ids)
         workers = min(self.cfg.budgets.max_parallel_episodes, len(jobs))
+        results: dict[int, EpisodeResult] = {}
+        waiting = list(range(len(jobs)))
+        running: dict[Future[EpisodeResult], int] = {}
+        finished: set[str] = set()
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            return list(pool.map(one, jobs))
+            # A chapter starts only after its prerequisites in this run have finished, so it can
+            # read their updated text; independent chapters still run in parallel.
+            while waiting or running:
+                ready = [i for i in waiting if blockers[ids[i]] <= finished]
+                if not ready and not running:  # unreachable for valid outlines; never deadlock
+                    ready = waiting[:1]
+                for i in ready[: workers - len(running)]:
+                    waiting.remove(i)
+                    running[pool.submit(one, jobs[i])] = i
+                done, _ = wait(running, return_when=FIRST_COMPLETED)
+                for fut in done:
+                    i = running.pop(fut)
+                    results[i] = fut.result()
+                    finished.add(ids[i])
+        return [results[i] for i in range(len(jobs))]
+
+    def _in_run_prerequisites(self, ids: list[str]) -> dict[str, set[str]]:
+        """For each chapter in this run, the chapters it (transitively) depends on that are
+        also in this run."""
+        in_run = set(ids)
+        if self.outline is None:
+            return {cid: set() for cid in ids}
+        known = {c.id: c for c in self.outline.chapters()}
+
+        def ancestors(cid: str, seen: set[str]) -> set[str]:
+            out: set[str] = set()
+            for pre in known[cid].prerequisites if cid in known else []:
+                if pre not in seen:
+                    seen.add(pre)
+                    out |= {pre} | ancestors(pre, seen)
+            return out
+
+        return {cid: (ancestors(cid, set()) & in_run) - {cid} for cid in ids}
 
     def close(self) -> None:
         if self.api is not None:

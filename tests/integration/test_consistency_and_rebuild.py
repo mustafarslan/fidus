@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -174,3 +175,32 @@ def test_failing_chapter_is_quarantined_after_max_attempts(
     assert "Needs a human" in (project["root"] / "n3/pr-body.md").read_text()
     rep = run(Options(project["config"], dry_run=True, output=project["root"] / "n4"))
     assert rep.noop and not rep.episodes  # quarantined: no more attempts
+
+
+def test_chapters_wait_for_in_run_prerequisites(project: dict[str, Path]) -> None:
+    import threading
+    import time
+
+    from fidus.agent.budget import RunBudget
+
+    session = Session.open(Options(project["config"], dry_run=True, output=project["root"] / "o"))
+    session.cfg.budgets.max_parallel_episodes = 3
+    events: list[str] = []
+    lock = threading.Lock()
+
+    def step(messages: list[Message], tools: list[ToolSpec]) -> Completion:
+        cid = re.search(r"\(`([a-z0-9-]+)`\)", messages[0].text).group(1)  # type: ignore[union-attr]
+        with lock:
+            events.append(f"start:{cid}")
+        time.sleep(0.05)
+        with lock:
+            events.append(f"end:{cid}")
+        return fake_tool_call("done", summary="ok", changed=False)
+
+    session._provider = FakeProvider([step] * 3)
+    jobs = [("sync", "auth", [], ""), ("sync", "overview", [], ""), ("sync", "data-model", [], "")]
+    results = session.run_chapter_episodes(jobs, RunBudget(10**6))  # type: ignore[arg-type]
+    assert [r.chapter_id for r in results] == ["auth", "overview", "data-model"]  # input order kept
+    assert events.index("end:overview") < events.index("start:data-model")
+    assert events.index("end:data-model") < events.index("start:auth")
+    session.close()
