@@ -204,3 +204,37 @@ def test_chapters_wait_for_in_run_prerequisites(project: dict[str, Path]) -> Non
     assert events.index("end:overview") < events.index("start:data-model")
     assert events.index("end:data-model") < events.index("start:auth")
     session.close()
+
+
+def test_repeated_deferral_keeps_one_entry_and_quarantine(
+    project: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _bootstrapped(project)
+    import fidus.pipeline.session as sess
+
+    cfg_text = (project["docs"] / "fidus.yaml").read_text()
+    (project["docs"] / "fidus.yaml").write_text(cfg_text + "budgets: {run: {max_episodes: 0}}\n")
+    git(project["docs"], "commit", "-qam", "cap episodes")
+    monkeypatch.setattr(sess, "make_provider", lambda *a, **k: HeuristicFakeProvider())
+    state_path = project["docs"] / ".fidus/state.json"
+    st = json.loads(state_path.read_text())
+    st["base"]["retry"] = [
+        {"chapter": "auth", "reason": "boom", "attempts": 3, "quarantined": True}
+    ]
+    state_path.write_text(json.dumps(st))
+    commit(
+        project["app"], {"src/auth/login.py": "def login(u, y=2):\n    return True\n"}, "feat: y"
+    )
+    for night in (1, 2):
+        # A new change to the chapter each night, so it is planned (and deferred) again.
+        commit(
+            project["app"],
+            {"src/auth/login.py": f"def login(u, n={night}):\n    return True\n"},
+            f"feat: night {night}",
+        )
+        out = project["root"] / f"d{night}"
+        run(Options(project["config"], dry_run=True, output=out))
+        shutil.copy(out / "state.json", state_path)
+        retry = json.loads(state_path.read_text())["base"]["retry"]
+        assert [e["chapter"] for e in retry] == ["auth"]  # one entry, not accumulating
+        assert retry[0]["quarantined"] is True and retry[0]["attempts"] == 3

@@ -270,7 +270,8 @@ def _record(
     # Incomplete work carried to the next run (in `base`: it must survive a merge).
     redone = set(by_chapter)
     previous = {e.chapter: e for e in state.base.retry}
-    retry = [e for e in state.base.retry if e.chapter not in redone]
+    deferred_ids = {i.chapter_id for i in plan.deferred}
+    retry = [e for e in state.base.retry if e.chapter not in redone | deferred_ids]
     max_attempts = session.cfg.limits.max_retry_attempts
 
     def carried(chapter: str, triggers: list[Trigger]) -> list[PendingTrigger]:
@@ -305,6 +306,7 @@ def _record(
                 reason="deferred: episode cap reached",
                 triggers=carried(item.chapter_id, item.triggers),
                 attempts=prev.attempts if prev else 0,
+                quarantined=prev.quarantined if prev else False,
             )
         )
     state.base.retry = retry
