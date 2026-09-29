@@ -21,6 +21,8 @@ def test_realistic_scenario_meets_every_expectation(tmp_path: Path) -> None:
     assert "caching" in by_day[7].changed_chapters  # the outline addition was written
     assert "docs/part-3/01-caching.md" in result.final_docs
     assert "| 8 |" in report
+    assert all(not d.quality for d in result.days)  # expect_live skipped with the fake model
+    assert "not run (fake model)" in report
 
 
 def test_bot_commits_use_the_simulated_clock(tmp_path: Path) -> None:

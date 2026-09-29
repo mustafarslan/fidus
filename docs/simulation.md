@@ -81,5 +81,7 @@ days:
       body_contains: "Skipped"
       retry: ["auth (quarantined)"]
       chapter_contains: {auth: "some text"}   # text present in that chapter after the night
+    expect_live:           # same keys; evaluated only with a real model, reported, never failing
+      chapter_contains: {auth: "refresh_token"}
       exit: 0
 ```

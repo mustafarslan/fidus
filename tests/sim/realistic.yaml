@@ -175,6 +175,8 @@ days:
   - day: 7                       # a new chapter is added to the outline; the weekly audit is due
     outline: realistic/outline_day7.yaml
     expect: {pr: open, changed: [caching], audit: true}
+    # Quality (real models only): the audit should notice what the rejected day-5 batch skipped.
+    expect_live: {chapter_contains: {auth: "refresh_token", data-model: "cancel"}}
 
   - day: 8                       # reviewer merges; three test-only PRs fill the per-run window (2)
     review: merge
