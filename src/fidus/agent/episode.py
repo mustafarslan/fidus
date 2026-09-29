@@ -17,6 +17,7 @@ from fidus.agent.tools.control_tools import TERMINAL_TOOLS, DoneArgs
 from fidus.agent.validate_doc import validate_chapter
 from fidus.config.outline import Outline
 from fidus.errors import BudgetExceeded, ProviderError
+from fidus.fsutil import atomic_write
 from fidus.llm.base import Provider
 from fidus.llm.types import Message, Role, TextPart, ToolResult, Usage, user
 from fidus.log import get_logger
@@ -73,7 +74,7 @@ def _restore(ctx: EpisodeContext) -> None:
     if ctx.original_doc is None:
         path.unlink(missing_ok=True)
     else:
-        path.write_text(ctx.original_doc, encoding="utf-8")
+        atomic_write(path, ctx.original_doc)
     ctx.written = False
 
 

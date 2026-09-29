@@ -8,6 +8,7 @@ from fidus.agent.context import EpisodeContext
 from fidus.agent.guards import check_write_path, resolve_read_path, scan_secrets
 from fidus.agent.tools.base import Tool, ToolArgs
 from fidus.agent.validate_doc import validate_chapter
+from fidus.fsutil import atomic_write
 
 
 class NoArgs(ToolArgs):
@@ -96,7 +97,7 @@ class WriteDocTool(Tool):
             )
         content = args.content if args.content.endswith("\n") else args.content + "\n"
         resolved.parent.mkdir(parents=True, exist_ok=True)
-        resolved.write_text(content, encoding="utf-8")
+        atomic_write(resolved, content)
         ctx.written = True
         ctx.last_written = content
         problems = validate_chapter(content, ctx)
