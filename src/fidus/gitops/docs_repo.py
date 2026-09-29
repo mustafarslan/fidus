@@ -161,5 +161,24 @@ class DocsRepo:
             args.insert(1, f"--force-with-lease=refs/heads/{branch}:{lease or ''}")
         self._git(*args, auth=True)
 
+    def write_file_commit(
+        self, path: str, content: str, message: str, author: Author, parent: str | None
+    ) -> str:
+        """Create a commit containing exactly one file, without touching the work tree or index."""
+        blob = git(["hash-object", "-w", "--stdin"], self.root, input=content).stdout.strip()
+        tree = git(["mktree"], self.root, input=f"100644 blob {blob}\t{path}\n").stdout.strip()
+        args = ["commit-tree", tree, "-m", message] + (["-p", parent] if parent else [])
+        return git(args, self.root, env=author.env()).stdout.strip()
+
+    def push_commit(self, sha: str, branch: str, lease: str | None) -> None:
+        """Push `sha` to `branch`; the lease ensures nobody moved it since we read it."""
+        self._git(
+            "push",
+            f"--force-with-lease=refs/heads/{branch}:{lease or ''}",
+            self.remote,
+            f"{sha}:refs/heads/{branch}",
+            auth=True,
+        )
+
     def delete_remote_branch(self, branch: str) -> None:
         self._git("push", self.remote, "--delete", branch, auth=True, check=False)

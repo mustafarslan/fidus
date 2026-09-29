@@ -52,6 +52,7 @@ sync:
   branch: fidus/sync             # the rolling PR branch
   outline_branch: fidus/outline
   bootstrap_branch: fidus/bootstrap
+  cache_branch: fidus/cache      # holds only the triage cache (never run state)
   pr_title: "docs: Fidus nightly sync"
   labels: [documentation, fidus]
   reviewers: []                  # GitHub usernames requested on new PRs

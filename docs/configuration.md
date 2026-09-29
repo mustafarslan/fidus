@@ -61,8 +61,9 @@ noisy or untrusted; the agent still sees titles, file lists and diffs.
   `fidus state clear-retry --chapter ID --unquarantine` (or drop it with `--chapter ID`) and
   commit `.fidus/state.json`.
 - **`triage_confidence_threshold`** (default `0.6`): triage decisions below this confidence are
-  ignored. Decisions above it are cached in `.fidus/state.json` (from the first run that opens a
-  PR onward) until the outline changes.
+  ignored. Decisions above it are cached until the outline changes: in `.fidus/state.json` on the
+  PR branch, and on a separate `fidus/cache` branch, so quiet nights that open no PR keep them too.
+  That branch only ever contains `triage-cache.json`; set `sync.cache_branch` to rename it.
 
 ## `budgets`
 

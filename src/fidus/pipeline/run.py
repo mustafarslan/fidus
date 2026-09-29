@@ -20,6 +20,7 @@ from fidus.pipeline.index import index_needs_update, write_index
 from fidus.pipeline.results import RunReport
 from fidus.pipeline.schedule import RunMode, audit_selection, resolve_modes
 from fidus.pipeline.session import Options, Session
+from fidus.publish.cache_branch import LoadedCache, load_cache, merge_into, save_cache
 from fidus.publish.pr_body import render_pr_body
 from fidus.publish.publisher import PublishRequest, publish_github, publish_local
 from fidus.publish.sync_branch import BranchInfo, BranchState, inspect_branch, prepare_branch
@@ -501,6 +502,12 @@ def _run(session: Session, mode: RunMode) -> RunReport:
             return report
         report.rebuilt = outcome.rebuild
 
+    # Triage decisions saved on quiet nights live on their own branch; fold them in.
+    loaded_cache: LoadedCache | None = None
+    if session.repo is not None:
+        loaded_cache = load_cache(session.repo, cfg.sync.cache_branch)
+        merge_into(state.base.triage_cache, loaded_cache.cache)
+
     # 2. What to do.
     do_sync, do_audit = resolve_modes(mode, state, cfg, session.now)
     report.did_sync, report.did_audit = do_sync, do_audit
@@ -607,5 +614,13 @@ def _run(session: Session, mode: RunMode) -> RunReport:
         for f in r.findings:
             if f.severity == "error":
                 report.notes.append(f"{f.chapter}: {f.text}")
+    if session.repo is not None and loaded_cache is not None:
+        save_cache(
+            session.repo,
+            cfg.sync.cache_branch,
+            state.base.triage_cache,
+            loaded_cache,
+            session.author,
+        )
     write_step_summary(report.summary_markdown())
     return report
