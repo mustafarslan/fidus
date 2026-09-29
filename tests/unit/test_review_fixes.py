@@ -270,3 +270,27 @@ def test_line_number_citations_are_flagged(
     assert any("line number" in p for p in validate_chapter(head + "See `app:src/a.py:12`.\n", ctx))
     assert any("line number" in p for p in validate_chapter(head + "See `app:src/a.py#L3`.\n", ctx))
     assert validate_chapter(head + "See `app:src/a.py`.\n", ctx) == []
+
+
+def test_invented_examples_are_flagged(tmp_path: Path, cfg: FidusConfig, outline: Outline) -> None:
+    (tmp_path / "docs").mkdir()
+    ctx = EpisodeContext(
+        mode="sync",
+        cfg=cfg,
+        repo_root=tmp_path,
+        workspaces={},
+        outline=outline,
+        chapter=outline.get("auth"),
+    )
+    head = "---\ntitle: A\nfidus:\n  chapter: auth\n---\n# A\n"
+    transcript = (
+        head + "```python\n# Tool call: get_pr(repo='a', number=1)\n# Result: 'Title: x'\n```\n"
+    )
+    assert any("transcript" in p for p in validate_chapter(transcript, ctx))
+    hypo = head + "Imagine a PR that adds a `timeout` parameter to the login function.\n"
+    assert any("hypothetical" in p for p in validate_chapter(hypo, ctx))
+    fine = (
+        head
+        + "```python\n# Returns True for every user today.\ndef login(user):\n    return True\n```\n"
+    )
+    assert validate_chapter(fine, ctx) == []

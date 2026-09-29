@@ -24,8 +24,9 @@ Define every term the first time you use it. Build on earlier chapters and link 
 re-explaining them.
 
 ## Worked example
-A realistic walkthrough using real code excerpts copied verbatim from the source, each with a
-citation line such as `api:src/auth/jwt.py`.
+A walkthrough built **only** from real code excerpts copied verbatim from the source (each with a
+citation line such as `api:src/auth/jwt.py`), connected by prose. Trace what the real code does,
+step by step.
 
 ## How it works internally
 Control flow, data flow and key design decisions. Mermaid diagrams are welcome.
@@ -49,6 +50,13 @@ Voice:
   example `[Authentication](../part-2-core/01-auth.md)`.
 - Copy code blocks verbatim from the source. Never write pseudo-code that looks like real code,
   and never invent example calls. If you illustrate a call, copy an actual call site.
+- **No hypothetical scenarios with invented code or output.** That rules out:
+  - made-up diffs or PRs ("imagine a PR that adds a `timeout` parameter")
+  - fake tool-call transcripts or log output
+  - invented function signatures, parameters or return values
+
+  Readers copy what they see, and invented examples read as fact. To explain a process, describe
+  it in prose using real identifiers, and quote the real code that implements each step.
 - Describe behaviour exactly as the code implements it, including edge cases. Don't describe
   what a system like this "typically" does.
 

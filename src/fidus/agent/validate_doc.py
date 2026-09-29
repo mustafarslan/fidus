@@ -14,6 +14,15 @@ FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\Z)", re.DOT
 LINK_RE = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 KEEP_RE = re.compile(r"<!--\s*fidus:keep\s*-->(.*?)<!--\s*/fidus:keep\s*-->", re.DOTALL)
 FENCE_RE = re.compile(r"^(```|~~~).*?^\1", re.DOTALL | re.MULTILINE)
+# Signs of invented examples: fake tool transcripts inside code, "imagine a PR ..." prose.
+TRANSCRIPT_RE = re.compile(
+    r"^\s*(?:#|//|>)\s*(?:tool call|result|output|response)\s*:", re.I | re.M
+)
+HYPOTHETICAL_RE = re.compile(
+    r"\b(?:imagine|suppose|let's say|hypothetically)\b[^.\n]{0,80}\b"
+    r"(?:pr|pull request|commit|change|function|developer|user|diff)\b",
+    re.I,
+)
 
 
 def keep_blocks(text: str | None) -> list[str]:
@@ -88,7 +97,21 @@ def validate_chapter(content: str, ctx: EpisodeContext) -> list[str]:
                     f"citation `{alias}:{path}` does not exist in the source repository"
                 )
 
-    # 4. Human-protected blocks are untouched.
+    # 4. No invented example scenarios (models copy them into docs as if they were real).
+    code = "\n".join(m.group(0) for m in FENCE_RE.finditer(content))
+    if TRANSCRIPT_RE.search(code):
+        problems.append(
+            "a code block contains a made-up tool/output transcript (lines like '# Tool call:' or "
+            "'# Result:'); replace it with real code excerpts and describe the process in prose"
+        )
+    hypo = HYPOTHETICAL_RE.search(prose)
+    if hypo:
+        problems.append(
+            f"hypothetical scenario ({hypo.group(0)[:60]!r}...); explain with the real code "
+            "instead of an imagined change or invented example"
+        )
+
+    # 5. Human-protected blocks are untouched.
     before = keep_blocks(ctx.original_doc)
     if before and keep_blocks(content) != before:
         problems.append(
