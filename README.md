@@ -301,7 +301,8 @@ Rules:
 - **Closing without merging** rejects the batch. Those source changes are skipped, and the next PR notes which ones. To have Fidus **regenerate** them instead, delete the `fidus/sync` branch as well after closing. The weekly audit catches any drift either way.
 - **Editing on the branch** is fine; Fidus keeps your commits. If `main` later conflicts with your edits, Fidus **pauses**: it marks the PR and waits instead of overwriting your work. Merge or close the PR to resume.
 - **Needs attention.** This section of the PR lists files no chapter covers, with suggested `sources` globs to paste into the outline. It also lists chapters that keep failing: after `limits.max_retry_attempts` failures they are marked **Needs a human** and no longer retried automatically.
-- **Protecting prose.** Wrap hand-written passages to keep them verbatim forever:
+- **Human edits are kept.** Lines people add to a Fidus-maintained chapter, on `main` or on the PR branch, are detected with `git blame` and listed in the agent's brief as passages to preserve. If a rewrite drops one, validation flags it. This is a strong nudge, not a guarantee: when the code contradicts the passage the model may still remove it, and the removal shows up in the PR.
+- **Protecting prose.** For a guarantee, wrap hand-written passages to keep them verbatim forever:
 
   ```markdown
   <!-- fidus:keep -->

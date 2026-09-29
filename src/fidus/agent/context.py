@@ -23,6 +23,9 @@ class EpisodeContext:
     chapter: Chapter | None = None
     triggers: list[Trigger] = field(default_factory=list)
     original_doc: str | None = None  # chapter content before this episode
+    human_lines: list[str] = field(
+        default_factory=list
+    )  # added by humans since Fidus last edited it
     protected_paths: list[Path] = field(default_factory=list)
     secret_values: list[str] = field(default_factory=list)
     # mutable episode state

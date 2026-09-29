@@ -79,6 +79,30 @@ class DocsRepo:
         if existing:
             self._git("clean", "-fdq", "--", *existing)
 
+    def human_lines(self, path: str, bot_email: str, limit: int = 40) -> list[str]:
+        """Lines of `path` (at HEAD) written by someone other than the bot after the bot first
+        took over the file. Lines keep this status even after later bot edits preserve them.
+        Empty if the bot never touched the file (docs adopted as-is are not flagged)."""
+        log = self._git("log", "--format=%H %ae", "--", path, check=False).splitlines()
+        bot_commits = [ln.split(" ", 1)[0] for ln in log if ln.endswith(" " + bot_email)]
+        if not bot_commits:
+            return []
+        first_bot = bot_commits[-1]  # log is newest first
+        out = self._git("blame", "--line-porcelain", f"{first_bot}..HEAD", "--", path, check=False)
+        lines: list[str] = []
+        boundary, author = False, ""
+        for raw in out.splitlines():
+            if raw.startswith("\t"):
+                text = raw[1:].strip()
+                if not boundary and author != f"<{bot_email}>" and len(text) >= 12:
+                    lines.append(text)
+                boundary, author = False, ""
+            elif raw == "boundary":
+                boundary = True
+            elif raw.startswith("author-mail "):
+                author = raw[len("author-mail ") :]
+        return list(dict.fromkeys(lines))[:limit]
+
     def rev(self, ref: str) -> str | None:
         out = git(["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"], self.root, check=False)
         return out.stdout.strip() or None

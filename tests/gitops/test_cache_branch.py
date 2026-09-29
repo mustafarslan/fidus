@@ -40,3 +40,68 @@ def test_cache_roundtrip_and_lease(tmp_path: Path) -> None:
         b, "fidus/cache", TriageCache(outline_hash="h2", entries={"k": None}), stale, BOT
     )
     assert load_cache(b, "fidus/cache").cache == cache
+
+
+def test_human_lines_since_last_bot_edit(tmp_path: Path) -> None:
+    repo_dir = make_repo(tmp_path / "docs", {"docs/a.md": "# A\nHuman-written intro paragraph.\n"})
+    repo = DocsRepo(repo_dir)
+    assert repo.human_lines("docs/a.md", BOT.email) == []  # Fidus never edited it: nothing flagged
+    git(
+        repo_dir,
+        "-c",
+        "user.name=Fidus",
+        "-c",
+        f"user.email={BOT.email}",
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "noop",
+    )  # ignore: doesn't touch the file
+    (repo_dir / "docs/a.md").write_text("# A\nBot rewrote the intro entirely.\n")
+    git(repo_dir, "add", "-A")
+    git(
+        repo_dir,
+        "commit",
+        "-qm",
+        "bot",
+        env={
+            "GIT_AUTHOR_NAME": "Fidus",
+            "GIT_AUTHOR_EMAIL": BOT.email,
+            "GIT_COMMITTER_NAME": "Fidus",
+            "GIT_COMMITTER_EMAIL": BOT.email,
+        },
+    )
+    commit(
+        repo_dir,
+        {"docs/a.md": "# A\nBot rewrote the intro entirely.\nHotfix note from a human on call.\n"},
+        "human hotfix",
+    )
+    assert repo.human_lines("docs/a.md", BOT.email) == ["Hotfix note from a human on call."]
+
+
+def test_human_lines_stay_protected_after_later_bot_edits(tmp_path: Path) -> None:
+    bot_env = {
+        "GIT_AUTHOR_NAME": "Fidus",
+        "GIT_AUTHOR_EMAIL": BOT.email,
+        "GIT_COMMITTER_NAME": "Fidus",
+        "GIT_COMMITTER_EMAIL": BOT.email,
+    }
+    repo_dir = make_repo(tmp_path / "d", {"README.md": "x"})
+    (repo_dir / "docs").mkdir()
+    (repo_dir / "docs/a.md").write_text("# A\nWritten by the bot at bootstrap.\n")
+    git(repo_dir, "add", "-A")
+    git(repo_dir, "commit", "-qm", "bootstrap", env=bot_env)
+    commit(
+        repo_dir,
+        {"docs/a.md": "# A\nWritten by the bot at bootstrap.\nA human hotfix note on main.\n"},
+        "hotfix",
+    )
+    # A later bot edit keeps the human line but changes other text.
+    (repo_dir / "docs/a.md").write_text(
+        "# A\nRevised by the bot later on.\nA human hotfix note on main.\n"
+    )
+    git(repo_dir, "commit", "-qam", "sync", env=bot_env)
+    assert DocsRepo(repo_dir).human_lines("docs/a.md", BOT.email) == [
+        "A human hotfix note on main."
+    ]
