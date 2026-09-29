@@ -61,6 +61,52 @@ def dump_yaml(data: Any, header: str | None = None) -> str:
     return buf.getvalue()
 
 
+def _update_map(target: Any, new: dict[str, Any]) -> None:
+    """Update a round-trip map in place: keys keep their position and comments."""
+    for key in [k for k in target if k not in new]:
+        del target[key]
+    for key, value in new.items():
+        if target.get(key) != value:
+            target[key] = value
+
+
+def merge_outline_yaml(existing_text: str, new: dict[str, Any]) -> str:
+    """Apply a new outline onto the existing fidus.outline.yaml text, keeping comments and
+    formatting of everything that did not change (parts and chapters are matched by id)."""
+    y = _yaml()
+    doc = y.load(io.StringIO(existing_text))
+    if not isinstance(doc, dict) or not isinstance(doc.get("parts"), list):
+        return dump_yaml(new)
+    old_parts = {p.get("id"): p for p in doc["parts"] if isinstance(p, dict)}
+    for key in ("version", "title", "description"):
+        if key in new and doc.get(key) != new[key]:
+            doc[key] = new[key]
+    merged_parts = []
+    for part in new.get("parts", []):
+        old = old_parts.get(part["id"])
+        if old is None:
+            merged_parts.append(part)
+            continue
+        old_chapters = {c.get("id"): c for c in old.get("chapters") or [] if isinstance(c, dict)}
+        chapters = []
+        for ch in part.get("chapters", []):
+            prev = old_chapters.get(ch["id"])
+            if prev is None:
+                chapters.append(ch)
+            else:
+                _update_map(prev, ch)
+                chapters.append(prev)
+        _update_map(
+            old, {k: v for k, v in part.items() if k != "chapters"} | {"chapters": old["chapters"]}
+        )
+        old["chapters"][:] = chapters
+        merged_parts.append(old)
+    doc["parts"][:] = merged_parts
+    buf = io.StringIO()
+    y.dump(doc, buf)
+    return buf.getvalue()
+
+
 def format_validation_error(source: str, err: ValidationError) -> str:
     lines = [f"{source} is invalid:"]
     for e in err.errors():
