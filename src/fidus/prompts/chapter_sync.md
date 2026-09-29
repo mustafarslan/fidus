@@ -22,5 +22,5 @@ $triggers
 5. If you renamed or removed a concept that later chapters may reference, list it in
    `concepts_changed`.
 
-### Current chapter content
+$known_problems### Current chapter content
 $current_doc

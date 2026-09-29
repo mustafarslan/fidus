@@ -11,5 +11,5 @@ every other part of the chapter as it is.
 If nothing needs to change, call `done` with `changed: false`. Otherwise call `write_doc`, then
 `done`.
 
-### Current chapter content
+$known_problems### Current chapter content
 $current_doc
