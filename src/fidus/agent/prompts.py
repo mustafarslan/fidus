@@ -105,9 +105,37 @@ def human_additions(ctx: EpisodeContext) -> str:
     )
 
 
+def coverage_hints(ctx: EpisodeContext) -> str:
+    """Public symbols in the chapter's sources that the chapter never mentions (advisory).
+
+    Sync episodes only look at files the triggers changed (new functions, renamed classes),
+    to keep nightly edits focused; audits and bootstrap look at every mapped source file."""
+    from fidus.agent.coverage import chapter_symbols, undocumented
+
+    if ctx.chapter is None or ctx.mode == "consistency" or not ctx.chapter.sources:
+        return ""
+    only = None
+    if ctx.mode == "sync":
+        only = {f"{t.alias}:{f.path}" for t in ctx.triggers for f in t.files}
+        if not only:
+            return ""
+    missing = undocumented(
+        chapter_symbols(ctx.workspaces, ctx.chapter.sources, only), ctx.original_doc or ""
+    )
+    if not missing:
+        return ""
+    lines = "\n".join(f"- `{name}` (`{ref}`)" for name, ref in missing)
+    return (
+        "### Possibly undocumented\n"
+        "These public symbols in this chapter's sources are never mentioned in it. Cover the ones a\n"
+        "reader needs (read them first), and ignore internal helpers:\n"
+        f"{lines}\n\n"
+    )
+
+
 def chapter_brief(ctx: EpisodeContext, *, changes: str = "") -> str:
     values = _chapter_values(ctx)
-    values["known_problems"] = known_problems(ctx) + human_additions(ctx)
+    values["known_problems"] = known_problems(ctx) + human_additions(ctx) + coverage_hints(ctx)
     if ctx.mode == "sync":
         return render("chapter_sync", triggers=format_triggers(ctx.triggers), **values)
     if ctx.mode == "audit":

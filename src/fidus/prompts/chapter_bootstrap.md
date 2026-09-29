@@ -17,4 +17,4 @@
 Pitch the chapter at its level. **Fundamentals** chapters assume no prior knowledge of this
 codebase. **Advanced** chapters can assume that the reader has read their prerequisites.
 
-$current_doc
+$known_problems$current_doc
