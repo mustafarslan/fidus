@@ -49,6 +49,19 @@ code. For large books, `chapters_per_run: N` rotates through the book N chapters
 `include_pr_body: false` hides PR descriptions from the agent. Use it if your PR descriptions are
 noisy or untrusted; the agent still sees titles, file lists and diffs.
 
+## `limits` worth knowing
+
+- **`init_coverage_target`** (default `0.9`): after `fidus init` proposes an outline, if its
+  chapter globs cover a smaller share of the (filtered) source files, the agent gets one repair
+  round that lists the uncovered locations.
+- **`max_retry_attempts`** (default `3`): chapters that fail (errors, protocol errors, running out
+  of budget) are retried on later nights, even after you merge. After this many failures a
+  chapter is quarantined, no longer retried automatically, and shown as **Needs a human** in the
+  PR. Any later successful update of the chapter clears it.
+- **`triage_confidence_threshold`** (default `0.6`): triage decisions below this confidence are
+  ignored. Decisions above it are cached in `.fidus/state.json` (from the first run that opens a
+  PR onward) until the outline changes.
+
 ## `budgets`
 
 Every model call counts against three budgets: the **episode** budget (turns and tokens per

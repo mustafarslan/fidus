@@ -82,6 +82,8 @@ limits:
   search_max_results: 50
   triage_confidence_threshold: 0.6
   max_consistency_episodes: 6
+  init_coverage_target: 0.9      # init asks the model to close coverage gaps below this share
+  max_retry_attempts: 3          # a chapter that fails this many times is quarantined
 
 github:
   api_url: https://api.github.com   # GitHub Enterprise Server: https://ghe.example.com/api/v3

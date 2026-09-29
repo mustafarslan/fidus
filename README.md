@@ -43,7 +43,7 @@ The documentation reads like a **computer-science textbook**. It is organised in
 1. **Collect.** For each source repository, Fidus lists the PRs merged since its last run, reading their files and diffs from the GitHub API. For local sources it lists commits instead. Lockfiles, build output and files you exclude are filtered out.
 2. **Map.** Each changed file is matched against the `sources` globs of the chapters in your outline, so `api:src/auth/**` maps to the *Authentication* chapter. Files that no glob covers go to a single LLM triage call. Anything it can't place is listed for you in the PR, never silently dropped.
 3. **Write.** Each affected chapter gets its own **agent episode**. The agent reads the triggering PRs and explores a fresh clone of the latest code with `read_file`, `search_code` and `list_files`. It then edits the chapter with the **smallest correct change**, citing source files as `alias:path`. It cannot write anything except its own chapter file.
-4. **Check.** Every write is validated: the frontmatter must be present, links to other chapters must resolve, cited files must exist, and human-protected `<!-- fidus:keep -->` blocks must be untouched. If a fundamentals chapter renames a concept, the chapters that build on it get a short consistency pass.
+4. **Check.** Every write is validated: the frontmatter must be present, links to other chapters must resolve, cited files must exist (without line numbers, which go stale), and human-protected `<!-- fidus:keep -->` blocks must be untouched. Problems already in a chapter are listed in the agent's brief so they get fixed too. If a fundamentals chapter renames a concept, the chapters that build on it get a short consistency pass. Within a run, a chapter always starts after the prerequisites it depends on.
 5. **Audit.** Once a week (you can change this), every chapter is re-verified against the current code. Ideas for restructuring the book are reported to you, never applied automatically.
 6. **Publish.** Everything goes into **one rolling PR** on the branch `fidus/sync`. The PR description is a table: chapter, the PR that triggered the change, and a one-line reason. If you don't merge for a few days, later changes accumulate in the same PR. Nights with nothing to do produce no PR at all.
 
@@ -114,6 +114,8 @@ fidus init --source acme/api --source acme/web --write-workflow
 - It writes `fidus.yaml`, asking for your provider and model if you didn't pass them.
 - It writes `.github/workflows/fidus.yml`.
 - It has the agent study your repositories and **propose `fidus.outline.yaml`**: Parts and Chapters ordered from fundamentals to advanced, each chapter mapped to source globs.
+
+If the proposed chapters leave more than 10% of your source files uncovered, `init` automatically runs one repair round that asks the agent to close the gaps.
 
 **Now edit the outline.** It is the single source of truth for the book's structure. Rename, reorder, merge and split chapters, and fix the `sources` globs. Then check it:
 
@@ -296,6 +298,7 @@ Rules:
 - **Merging** publishes the docs and advances Fidus's cursor.
 - **Closing without merging** rejects the batch. Those source changes are skipped, and the next PR notes which ones. To have Fidus **regenerate** them instead, delete the `fidus/sync` branch as well after closing. The weekly audit catches any drift either way.
 - **Editing on the branch** is fine; Fidus keeps your commits. If `main` later conflicts with your edits, Fidus **pauses**: it marks the PR and waits instead of overwriting your work. Merge or close the PR to resume.
+- **Needs attention.** This section of the PR lists files no chapter covers, with suggested `sources` globs to paste into the outline. It also lists chapters that keep failing: after `limits.max_retry_attempts` failures they are marked **Needs a human** and no longer retried automatically.
 - **Protecting prose.** Wrap hand-written passages to keep them verbatim forever:
 
   ```markdown
