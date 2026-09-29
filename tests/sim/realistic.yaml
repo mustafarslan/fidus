@@ -1,0 +1,185 @@
+# Eight simulated days of an order API + web client, exercising Fidus the way a team would.
+name: Acme platform, 8 days
+start: 2026-03-02
+docs_repo: acme/docs
+sources:
+  - {repo: acme/api, alias: api, branch: main, fixture: realistic/api, include: ["src/**", "README.md"], exclude: ["**/tests/**"]}
+  - {repo: acme/web, alias: web, branch: main, fixture: realistic/web, include: ["src/**", "README.md"]}
+outline: realistic/outline.yaml
+config:
+  sync: {max_prs_per_run: 2}
+days:
+  - day: 0                       # first run: write the whole book
+    bootstrap: true
+    expect: {pr: open, exit: 0}
+
+  - day: 1                       # reviewer merges the bootstrap PR; two features ship
+    review: merge
+    merges:
+      - repo: acme/api
+        title: "Add refresh tokens"
+        body: "Clients can exchange a still-valid token for a fresh one."
+        files:
+          src/acme_api/auth/tokens.py: |
+            """Bearer tokens: HMAC-signed, with an expiry. Tokens can be refreshed before they expire."""
+
+            import hashlib
+            import hmac
+            import time
+
+            SECRET = b"change-me"
+
+
+            def issue_token(user_id: int, ttl_seconds: int = 3600) -> str:
+                expires = int(time.time()) + ttl_seconds
+                payload = f"{user_id}:{expires}"
+                sig = hmac.new(SECRET, payload.encode(), hashlib.sha256).hexdigest()
+                return f"{payload}:{sig}"
+
+
+            def verify_token(token: str) -> int | None:
+                """Return the user id if the token is valid and not expired, else None."""
+                try:
+                    user_id, expires, sig = token.split(":")
+                except ValueError:
+                    return None
+                expected = hmac.new(SECRET, f"{user_id}:{expires}".encode(), hashlib.sha256).hexdigest()
+                if not hmac.compare_digest(sig, expected) or int(expires) < time.time():
+                    return None
+                return int(user_id)
+
+
+            def refresh_token(token: str, ttl_seconds: int = 3600) -> str | None:
+                """Exchange a valid token for a new one with a fresh expiry; None if invalid."""
+                user_id = verify_token(token)
+                return None if user_id is None else issue_token(user_id, ttl_seconds)
+      - repo: acme/web
+        title: "Show order status on the orders page"
+        files:
+          src/pages/orders.ts: |
+            import { fetchOrders } from "../api/client";
+            import type { Session } from "../lib/session";
+
+            export async function renderOrders(root: HTMLElement, session: Session): Promise<void> {
+              const orders = await fetchOrders(session.token);
+              root.innerHTML = orders
+                .map((o) => `<li>#${o.id} — ${(o.total_cents / 100).toFixed(2)} <span>${o.status}</span></li>`)
+                .join("");
+            }
+    expect: {pr: open, changed: [auth, web-client], exit: 0}
+
+  - day: 2                       # reviewer is away; another change accumulates in the same PR
+    merges:
+      - repo: acme/api
+        title: "Orders can be cancelled"
+        files:
+          src/acme_api/models/order.py: |
+            """The Order entity and its status lifecycle: pending -> paid -> shipped (or cancelled)."""
+
+            from dataclasses import dataclass, field
+            from datetime import datetime
+
+            STATUSES = ("pending", "paid", "shipped")
+
+
+            @dataclass
+            class Order:
+                id: int
+                user_id: int
+                total_cents: int
+                status: str = "pending"
+                created_at: datetime = field(default_factory=datetime.utcnow)
+                cancelled_at: datetime | None = None
+
+                def advance(self) -> None:
+                    """Move to the next status; shipped and cancelled are final."""
+                    if self.status == "cancelled":
+                        return
+                    i = STATUSES.index(self.status)
+                    if i < len(STATUSES) - 1:
+                        self.status = STATUSES[i + 1]
+
+                def cancel(self) -> None:
+                    """Cancel a pending or paid order."""
+                    if self.status in ("pending", "paid"):
+                        self.status = "cancelled"
+                        self.cancelled_at = datetime.utcnow()
+    expect: {pr: open, changed: [data-model], body_contains: "Accumulated over 2 nightly run(s)"}
+
+  - day: 3                       # reviewer polishes the docs PR by hand; quiet night
+    edit_branch:
+      docs/part-2/01-auth.md: "\n> Reviewer note: tokens are opaque to clients.\n"
+    expect: {pr: open, noop: true}
+
+  - day: 4                       # someone edits the auth chapter on main -> conflicts with the reviewer's edit
+    edit_main:
+      docs/part-2/01-auth.md: "\nHotfix note added directly on main.\n"
+    merges:
+      - repo: acme/api
+        title: "Shorter default token lifetime"
+        files:
+          src/acme_api/config.py: |
+            """Settings loaded from environment variables."""
+
+            import os
+            from dataclasses import dataclass
+
+
+            @dataclass
+            class Settings:
+                database_url: str
+                redis_url: str
+                token_ttl_seconds: int = 900
+
+                @classmethod
+                def from_env(cls) -> "Settings":
+                    return cls(
+                        database_url=os.environ["ACME_DATABASE_URL"],
+                        redis_url=os.environ.get("ACME_REDIS_URL", "redis://localhost:6379/0"),
+                        token_ttl_seconds=int(os.environ.get("ACME_TOKEN_TTL", "900")),
+                    )
+    expect: {pr: open, paused: true}
+
+  - day: 5                       # reviewer gives up on that PR and closes it -> changes skipped
+    review: close
+    merges:
+      - repo: acme/web
+        title: "Expire sessions client-side"
+        files:
+          src/lib/session.ts: |
+            export interface Session {
+              token: string;
+              expiresAt: number;
+            }
+
+            const KEY = "acme.session";
+
+            export function loadSession(): Session | null {
+              const raw = localStorage.getItem(KEY);
+              if (!raw) return null;
+              const session = JSON.parse(raw) as Session;
+              return session.expiresAt > Date.now() ? session : null;
+            }
+
+            export function saveSession(session: Session): void {
+              localStorage.setItem(KEY, JSON.stringify(session));
+            }
+    # The human's hotfix note on main (day 4) should survive the model updating that chapter.
+    expect: {pr: open, changed: [web-client], body_contains: "Skipped",
+             chapter_contains: {auth: "Hotfix note added directly on main."}}
+
+  - day: 6                       # reviewer merges; nothing new tonight
+    review: merge
+    expect: {pr: none, noop: true}
+
+  - day: 7                       # a new chapter is added to the outline; the weekly audit is due
+    outline: realistic/outline_day7.yaml
+    expect: {pr: open, changed: [caching], audit: true}
+
+  - day: 8                       # reviewer merges; three test-only PRs fill the per-run window (2)
+    review: merge
+    merges:
+      - {repo: acme/api, title: "Test: order totals", files: {tests/test_totals.py: "def test_totals():\n    assert 1\n"}}
+      - {repo: acme/api, title: "Test: tokens", files: {tests/test_tokens.py: "def test_tokens():\n    assert 1\n"}}
+      - {repo: acme/api, title: "Test: cache", files: {tests/test_cache.py: "def test_cache():\n    assert 1\n"}}
+    expect: {pr: open, unchanged: true, body_contains: "no documentation impact"}

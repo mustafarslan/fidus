@@ -479,6 +479,8 @@ def _run(session: Session, mode: RunMode) -> RunReport:
         branch = inspect_branch(
             api, session.repo, session.slug, cfg.sync.branch, default, keep_rejected=True
         )
+        # A merged or closed bootstrap PR leaves its branch behind; clean it up like fidus/sync.
+        inspect_branch(api, session.repo, session.slug, cfg.sync.bootstrap_branch, default)
     state = _load_state(session, branch, default)
     if state is None:
         if session.opts.since is None:
