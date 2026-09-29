@@ -18,6 +18,8 @@ The documentation reads like a **computer-science textbook**. It is organised in
                                   PR "docs: Fidus nightly sync"  →  human review  →  merge
 ```
 
+> **New here?** Follow the [15-minute tutorial](docs/tutorial.md): try Fidus locally with no GitHub setup, then turn it into a nightly PR.
+
 ## Contents
 
 - [How it works](#how-it-works)
