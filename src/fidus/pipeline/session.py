@@ -42,6 +42,8 @@ class Options:
     dry_run: bool = False
     output: Path | None = None
     provider: str | None = None  # e.g. "fake" overrides llm.provider
+    model: str | None = None  # overrides llm.model
+    base_url: str | None = None  # overrides llm.base_url
     since: datetime | None = None
     chapters: set[str] | None = None
     no_push: bool = False
@@ -82,6 +84,10 @@ class Session:
         cfg = load_config(config_path)
         if opts.provider:
             cfg.llm.provider = opts.provider  # type: ignore[assignment]
+        if opts.model:
+            cfg.llm.model = opts.model
+        if opts.base_url:
+            cfg.llm.base_url = opts.base_url
         outline = load_outline(cfg, config_path) if need_outline else None
         repo_root = config_path.parent
         now = opts.now or datetime.now(UTC)
