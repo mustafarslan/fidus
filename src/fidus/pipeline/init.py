@@ -13,6 +13,7 @@ from fidus.agent.tools.source_tools import iter_files
 from fidus.config.loader import dump_yaml, outline_path
 from fidus.config.outline import Outline
 from fidus.errors import FidusError
+from fidus.fsutil import atomic_write
 from fidus.log import get_logger
 from fidus.mapping.globs import ChapterMatcher
 from fidus.pipeline.session import Options, Session
@@ -182,9 +183,7 @@ def propose_outline(opts: Options, *, title: str | None = None) -> tuple[Outline
                     log.info("repaired outline covers %.0f%% of files", new_cov * 100)
                     outline = repaired
         path = outline_path(session.cfg, session.opts.config_path.resolve())
-        path.write_text(
-            dump_yaml(outline.model_dump(mode="json"), header=OUTLINE_HEADER), encoding="utf-8"
-        )
+        atomic_write(path, dump_yaml(outline.model_dump(mode="json"), header=OUTLINE_HEADER))
         log.info("wrote %s (%d chapters)", path, sum(1 for _ in outline.chapters()))
         return outline, path
     finally:

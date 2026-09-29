@@ -10,6 +10,7 @@ from fidus.agent.prompts import render
 from fidus.agent.tools.control_tools import ProposeOutlineTool
 from fidus.config.loader import dump_yaml, outline_path
 from fidus.config.outline import Outline
+from fidus.fsutil import atomic_write
 from fidus.llm.types import Message, Role, ToolResult, user
 from fidus.log import get_logger
 from fidus.pipeline.init import OUTLINE_HEADER
@@ -69,9 +70,7 @@ def propose_outline_pr(session: Session, suggestions: list[str], default: str) -
     # A proposal is regenerated from the default branch every time.
     session.repo.checkout_new(info.name, f"{session.repo.remote}/{default}")
     path = outline_path(session.cfg, session.opts.config_path.resolve())
-    path.write_text(
-        dump_yaml(outline.model_dump(mode="json"), header=OUTLINE_HEADER), encoding="utf-8"
-    )
+    atomic_write(path, dump_yaml(outline.model_dump(mode="json"), header=OUTLINE_HEADER))
     rel = path.relative_to(session.repo_root).as_posix()
     body = (
         "## Fidus: proposed outline changes\n\n"

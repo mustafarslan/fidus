@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fidus.config.outline import Outline
+from fidus.fsutil import atomic_write
 
 LEVEL_BADGE = {"fundamentals": "🟢", "intermediate": "🟡", "advanced": "🔴"}
 
@@ -47,5 +48,5 @@ def write_index(outline: Outline, docs_root: Path, index_file: str | None) -> bo
     if path.exists() and path.read_text(encoding="utf-8") == content:
         return False
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    atomic_write(path, content)
     return True

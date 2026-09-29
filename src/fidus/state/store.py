@@ -8,6 +8,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from fidus.errors import FidusError
+from fidus.fsutil import atomic_write
 from fidus.state.models import Pending, State
 
 STATE_PATH = ".fidus/state.json"
@@ -37,5 +38,5 @@ def dump_state(state: State) -> str:
 def write_state(repo_root: Path, state: State) -> Path:
     path = repo_root / STATE_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dump_state(state), encoding="utf-8")
+    atomic_write(path, dump_state(state))
     return path
