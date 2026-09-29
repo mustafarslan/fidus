@@ -19,6 +19,54 @@ SDK_MODULE = {"anthropic": "anthropic", "gemini": "google.genai", "openai": "ope
 EXTRA = {"anthropic": "anthropic", "gemini": "gemini", "openai": "openai"}
 
 
+def docs_access_checks(
+    api: GitHubAPI, slug: str, source_repos: list[str]
+) -> list[tuple[bool | None, str]]:
+    """Can this token push to the docs repo, and (for App tokens) is the App installed on every
+    repo Fidus needs? Returns (ok, message) pairs; ok=None means a warning."""
+    out: list[tuple[bool | None, str]] = []
+    try:
+        repo = api.repo(slug)
+    except FidusError as e:
+        return [(False, f"docs repo {slug}: {e}")]
+    installed: dict[str, dict[str, bool]] | None
+    try:  # only GitHub App installation tokens can call this endpoint
+        found: dict[str, dict[str, bool]] = {}
+        for page in api.c.paginate("/installation/repositories"):
+            for r in page.get("repositories", []):
+                found[r["full_name"].lower()] = r.get("permissions") or {}
+        installed = found
+    except FidusError:
+        installed = None  # a PAT or GITHUB_TOKEN
+    perms = repo.get("permissions") or (installed or {}).get(slug.lower()) or {}
+    if perms.get("push"):
+        out.append((True, f"docs repo {slug}: token can push"))
+    elif perms:
+        out.append(
+            (
+                False,
+                f"docs repo {slug}: token cannot push; grant Contents: Read and write "
+                "(and Pull requests: Read and write)",
+            )
+        )
+    else:
+        out.append((None, f"docs repo {slug} reachable, but push access could not be verified"))
+    if installed is not None:
+        missing = [r for r in [slug, *source_repos] if r.lower() not in installed]
+        if missing:
+            out.append(
+                (
+                    False,
+                    "GitHub App is not installed on: "
+                    + ", ".join(missing)
+                    + " (App settings → Install App → add the repositories)",
+                )
+            )
+        else:
+            out.append((True, f"GitHub App installed on all {1 + len(source_repos)} repositories"))
+    return out
+
+
 def run_doctor(config: Path, *, ping: bool, console: Console) -> bool:
     ok = True
 
@@ -74,14 +122,10 @@ def run_doctor(config: Path, *, ping: bool, console: Console) -> bool:
                 )
         slug = docs_repo_slug()
         if slug:
-            try:
-                perms = api.repo(slug).get("permissions") or {}
-                good(
-                    f"docs repo {slug} reachable"
-                    + (f" (push={perms.get('push')})" if perms else "")
-                )
-            except FidusError as e:
-                bad(f"docs repo {slug}: {e}")
+            for status, msg in docs_access_checks(
+                api, slug, [x.repo for x in cfg.sources if x.repo]
+            ):
+                (good if status is True else warn if status is None else bad)(msg)
         else:
             warn("docs repo unknown locally (set FIDUS_DOCS_REPO=owner/name to check it)")
     finally:

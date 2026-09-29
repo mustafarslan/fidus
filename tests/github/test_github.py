@@ -114,3 +114,40 @@ def test_github_triggers_respect_cursor_and_stop_early() -> None:
     assert ts[0].files[0].path == "src/a.py" and ts[0].url.endswith("/11")  # type: ignore[union-attr]
     params = listing.calls[0].request.url.params
     assert params["state"] == "closed" and params["base"] == "main" and params["sort"] == "updated"
+
+
+@respx.mock
+def test_doctor_access_checks_pat_and_app_tokens() -> None:
+    from fidus.cli.doctor_cmd import docs_access_checks
+
+    api = GitHubAPI(GitHubClient("t"))
+    # PAT without push; /installation/repositories is forbidden for non-App tokens.
+    respx.get(f"{API}/repos/acme/docs").mock(
+        return_value=httpx.Response(200, json={"permissions": {"push": False, "pull": True}})
+    )
+    inst = respx.get(f"{API}/installation/repositories").mock(
+        return_value=httpx.Response(403, json={"message": "must use an installation token"})
+    )
+    checks = docs_access_checks(api, "acme/docs", ["acme/api"])
+    assert (
+        checks
+        == [
+            (False, checks[0][1]),
+        ]
+        and "cannot push" in checks[0][1]
+    )
+
+    # App installation token: repo payload has no permissions; installation lists repos.
+    respx.get(f"{API}/repos/acme/docs").mock(return_value=httpx.Response(200, json={}))
+    inst.mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "total_count": 1,
+                "repositories": [{"full_name": "acme/docs", "permissions": {"push": True}}],
+            },
+        )
+    )
+    checks = docs_access_checks(api, "acme/docs", ["acme/api", "acme/web"])
+    assert checks[0][0] is True
+    assert checks[1][0] is False and "acme/api, acme/web" in checks[1][1]
