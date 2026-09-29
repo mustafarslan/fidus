@@ -175,6 +175,7 @@ class Session:
         return Author(
             os.environ.get("FIDUS_GIT_USER_NAME") or self.cfg.git.author_name,
             os.environ.get("FIDUS_GIT_USER_EMAIL") or self.cfg.git.author_email,
+            date=self.now.isoformat() if os.environ.get("FIDUS_NOW") else None,
         )
 
     @property

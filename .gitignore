@@ -15,3 +15,6 @@ fidus-out/
 out/
 .DS_Store
 .env
+
+# simulator reports (python -m fidus.sim)
+sim-report*.md

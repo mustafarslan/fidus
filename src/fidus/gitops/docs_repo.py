@@ -13,14 +13,18 @@ from fidus.gitops.runner import git
 class Author:
     name: str
     email: str
+    date: str | None = None  # ISO date for commits; only set by simulations (FIDUS_NOW)
 
     def env(self) -> dict[str, str]:
-        return {
+        env = {
             "GIT_AUTHOR_NAME": self.name,
             "GIT_AUTHOR_EMAIL": self.email,
             "GIT_COMMITTER_NAME": self.name,
             "GIT_COMMITTER_EMAIL": self.email,
         }
+        if self.date:
+            env["GIT_AUTHOR_DATE"] = env["GIT_COMMITTER_DATE"] = self.date
+        return env
 
 
 class DocsRepo:
