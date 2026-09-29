@@ -76,3 +76,38 @@ def test_clone_sources_is_thread_safe(project: dict[str, Path], monkeypatch: obj
     with ThreadPoolExecutor(4) as pool:
         list(pool.map(lambda _: session.clone_sources(), range(4)))
     assert len(calls) == 1  # one source, cloned exactly once
+
+
+def test_state_clear_retry(project: dict[str, Path]) -> None:
+    cfg = str(project["config"])
+    state_file = project["docs"] / ".fidus/state.json"
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(
+        json.dumps(
+            {
+                "base": {
+                    "retry": [
+                        {
+                            "chapter": "auth",
+                            "reason": "boom",
+                            "attempts": 3,
+                            "quarantined": True,
+                            "triggers": [{"repo": "a/b", "number": 1, "title": "t"}],
+                        },
+                        {"chapter": "overview", "reason": "deferred", "attempts": 0},
+                    ]
+                }
+            }
+        )
+    )
+    res = runner.invoke(cli, ["state", "clear-retry", "-c", cfg])
+    assert res.exit_code == 2  # needs --chapter or --all
+    res = runner.invoke(
+        cli, ["state", "clear-retry", "--chapter", "auth", "--unquarantine", "-c", cfg]
+    )
+    assert res.exit_code == 0, res.output
+    retry = json.loads(state_file.read_text())["base"]["retry"]
+    assert retry[0]["quarantined"] is False and retry[0]["attempts"] == 0
+    assert retry[0]["triggers"][0]["title"] == "t"  # kept
+    res = runner.invoke(cli, ["state", "clear-retry", "--all", "-c", cfg])
+    assert res.exit_code == 0 and json.loads(state_file.read_text())["base"]["retry"] == []

@@ -272,6 +272,24 @@ def state_set_cursor(
         _fail(e)
 
 
+@state_app.command("clear-retry")
+def state_clear_retry(
+    chapter: Annotated[str | None, typer.Option(help="Chapter id to act on.")] = None,
+    all_: Annotated[bool, typer.Option("--all", help="Act on every retry entry.")] = False,
+    unquarantine: Annotated[
+        bool, typer.Option(help="Keep the entry but reset attempts so it is retried next run.")
+    ] = False,
+    config: ConfigOpt = Path("fidus.yaml"),
+) -> None:
+    """Drop retry entries, or lift a quarantine (--unquarantine). Commit the file afterwards."""
+    from fidus.cli.state_cmd import clear_retry
+
+    try:
+        clear_retry(config, chapter, all_, unquarantine, console)
+    except FidusError as e:
+        _fail(e)
+
+
 def main() -> None:
     app()
 

@@ -316,7 +316,7 @@ Rules:
 | `fidus bootstrap [--chapters a,b] [--resume]` | Write every chapter and open the bootstrap PR |
 | `fidus run [--mode auto\|sync\|audit\|full]` | The nightly job. `auto` = sync, plus an audit when one is due |
 | `fidus doctor [--ping]` | Check git, tokens, repo access, SDK and key; `--ping` tests tool calling |
-| `fidus state show \| set-cursor` | Inspect or move the run cursor |
+| `fidus state show \| set-cursor \| clear-retry` | Inspect or move the run cursor; drop retries or lift a quarantine |
 
 Common flags:
 - `--dry-run --output DIR` writes the would-be docs, `state.json`, `pr-body.md`, `run.json` and `diff.patch` locally, with no GitHub writes.

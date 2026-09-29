@@ -47,3 +47,29 @@ def set_cursor(config: Path, repo: str, to: str, console: Console) -> None:
     console.print(
         f"cursor for {repo} set to {when.isoformat()}; commit {STATE_PATH} to the default branch"
     )
+
+
+def clear_retry(
+    config: Path, chapter: str | None, all_: bool, unquarantine: bool, console: Console
+) -> None:
+    root = config.resolve().parent
+    state = _read(root, None)
+    if state is None or not state.base.retry:
+        console.print("no retry entries")
+        return
+    if not chapter and not all_:
+        raise ConfigError("pass --chapter ID or --all")
+    targets = [e for e in state.base.retry if all_ or e.chapter == chapter]
+    if not targets:
+        raise ConfigError(f"no retry entry for chapter {chapter!r}")
+    if unquarantine:
+        for e in targets:
+            e.quarantined = False
+            e.attempts = 0
+        action = "will be retried next run"
+    else:
+        state.base.retry = [e for e in state.base.retry if e not in targets]
+        action = "removed"
+    write_state(root, state)
+    names = ", ".join(e.chapter for e in targets)
+    console.print(f"{names}: {action}; commit {STATE_PATH} to the default branch")
