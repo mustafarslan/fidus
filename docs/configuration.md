@@ -57,7 +57,9 @@ noisy or untrusted; the agent still sees titles, file lists and diffs.
 - **`max_retry_attempts`** (default `3`): chapters that fail (errors, protocol errors, running out
   of budget) are retried on later nights, even after you merge. After this many failures a
   chapter is quarantined, no longer retried automatically, and shown as **Needs a human** in the
-  PR. Any later successful update of the chapter clears it.
+  PR. Any later successful update of the chapter clears it, or you can run
+  `fidus state clear-retry --chapter ID --unquarantine` (or drop it with `--chapter ID`) and
+  commit `.fidus/state.json`.
 - **`triage_confidence_threshold`** (default `0.6`): triage decisions below this confidence are
   ignored. Decisions above it are cached in `.fidus/state.json` (from the first run that opens a
   PR onward) until the outline changes.
