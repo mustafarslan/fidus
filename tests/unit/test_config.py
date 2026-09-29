@@ -94,3 +94,58 @@ def test_load_config_errors_are_friendly(tmp_path: Path) -> None:
     p.write_text("sources: [unclosed\n")
     with pytest.raises(ConfigError, match="invalid YAML"):
         load_config(p)
+
+
+def test_merge_outline_yaml_keeps_comments() -> None:
+    from fidus.config.loader import merge_outline_yaml
+
+    text = """\
+# Our book. Reviewed by the docs guild.
+version: 1
+title: The App Book   # keep this short
+parts:
+  - id: foundations
+    title: "Part I: Foundations"
+    chapters:
+      # The overview is hand-tuned; don't split it.
+      - id: overview
+        title: Overview
+        path: part-1/01-overview.md
+        sources: ["app:README.md"]
+      - id: legacy
+        title: Legacy
+        path: part-1/09-legacy.md
+"""
+    new = {
+        "version": 1,
+        "title": "The App Book",
+        "parts": [
+            {
+                "id": "foundations",
+                "title": "Part I: Foundations",
+                "chapters": [
+                    {
+                        "id": "overview",
+                        "title": "Overview",
+                        "path": "part-1/01-overview.md",
+                        "sources": ["app:README.md"],
+                    },
+                    {
+                        "id": "webhooks",
+                        "title": "Webhooks",
+                        "path": "part-1/02-webhooks.md",
+                        "sources": ["app:src/hooks/**"],
+                        "prerequisites": ["overview"],
+                    },
+                ],
+            }
+        ],
+    }
+    out = merge_outline_yaml(text, new)
+    assert "# Our book. Reviewed by the docs guild." in out
+    assert "# keep this short" in out
+    assert "# The overview is hand-tuned; don't split it." in out
+    assert "webhooks" in out and "legacy" not in out
+    assert Outline.model_validate(parse_yaml_text(out)).get("webhooks").prerequisites == [
+        "overview"
+    ]
