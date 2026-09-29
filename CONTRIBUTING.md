@@ -36,5 +36,9 @@ The design and its rationale are in [docs/design.md](docs/design.md).
 - **Adding a provider:** implement the `Provider` protocol in `src/fidus/llm/`. Keep
   `to_request`/`from_response` as pure functions, add fixture tests in `tests/llm/`, and register
   the provider in `llm/base.py:make_provider`.
+- **Dependabot action bumps:** `tests/unit/test_templates.py` fails when the repo's workflows use a
+  newer `actions/*` major than the workflow users copy. Update
+  `src/fidus/templates/workflow.yml` (then copy it to `examples/workflows/fidus.yml`), the README
+  and `docs/github-app.md` in the same PR.
 - **Changing prompts:** they shape every user's docs. Explain the motivation in the PR and include
   before/after chapter excerpts from a real run.

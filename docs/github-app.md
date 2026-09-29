@@ -39,7 +39,7 @@ Mint both tokens in the workflow:
         with:
           client-id: ${{ vars.FIDUS_WRITER_CLIENT_ID }}
           private-key: ${{ secrets.FIDUS_WRITER_PRIVATE_KEY }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { token: "${{ steps.writer.outputs.token }}", fetch-depth: 0 }
       - uses: mustafarslan/fidus@v1
         env:
