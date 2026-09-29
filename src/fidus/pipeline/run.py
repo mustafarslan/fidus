@@ -25,8 +25,10 @@ from fidus.publish.sync_branch import BranchInfo, BranchState, inspect_branch, p
 from fidus.sources.filters import apply_filters
 from fidus.sources.github_source import advance_cursor, github_triggers
 from fidus.sources.local_source import is_ancestor, local_triggers
-from fidus.sources.trigger import Trigger
+from fidus.sources.trigger import ChangedFile, Trigger
 from fidus.state.models import (
+    MAX_STORED_FILES,
+    ChangedFileRef,
     IncompleteEpisode,
     PendingAudit,
     PendingTrigger,
@@ -83,7 +85,8 @@ def _rejected_state(session: Session, branch: BranchInfo, default: str) -> State
 
 
 def _to_trigger(p: PendingTrigger, alias_of: Callable[[str], str]) -> Trigger:
-    """Reconstruct a lightweight Trigger (no diff) from state, for rebuilds and retries."""
+    """Reconstruct a Trigger from state for rebuilds and retries: file list, but no diffs."""
+    files = [ChangedFile(f.path, f.status, f.additions, f.deletions) for f in p.files]
     return Trigger(
         repo=p.repo,
         alias=alias_of(p.repo),
@@ -92,12 +95,29 @@ def _to_trigger(p: PendingTrigger, alias_of: Callable[[str], str]) -> Trigger:
         sha=p.sha,
         url=p.url,
         merged_at=p.merged_at,
+        files=files,
+        omitted_files=max(0, p.files_total - len(files)),
+        notes=["Diffs are not available for retried changes; read the current files instead."],
     )
 
 
-def _to_pending(t: Trigger) -> PendingTrigger:
+def _to_pending(t: Trigger, unmapped_files: list[str] | None = None) -> PendingTrigger:
+    kept = t.files[:MAX_STORED_FILES]
     return PendingTrigger(
-        repo=t.repo, number=t.number, sha=t.sha, title=t.title, url=t.url, merged_at=t.merged_at
+        repo=t.repo,
+        number=t.number,
+        sha=t.sha,
+        title=t.title,
+        url=t.url,
+        merged_at=t.merged_at,
+        unmapped_files=unmapped_files or [],
+        files=[
+            ChangedFileRef(
+                path=f.path, status=f.status, additions=f.additions, deletions=f.deletions
+            )
+            for f in kept
+        ],
+        files_total=len(t.files) + t.omitted_files,
     )
 
 
@@ -261,15 +281,7 @@ def _record(
         if key in existing:
             existing[key].chapters = {}
     for t in triggers:
-        existing[t.key] = PendingTrigger(
-            repo=t.repo,
-            number=t.number,
-            sha=t.sha,
-            title=t.title,
-            url=t.url,
-            merged_at=t.merged_at,
-            unmapped_files=plan.unmapped.get(t.key, []),
-        )
+        existing[t.key] = _to_pending(t, unmapped_files=plan.unmapped.get(t.key, []))
     for chapter_id, r in by_chapter.items():
         item = items.get(chapter_id)
         if item is None:
