@@ -1,226 +1,193 @@
 # Fidus
 
-**An autonomous documentation agent that keeps a textbook-style docs repository in sync with your codebases, one reviewed pull request per day.**
+**Documentation that keeps up with your code.**
 
-Fidus watches one or more source repositories. Every night it reads the pull requests that were merged, works out which chapters of your documentation they affect, rewrites those chapters so they match the latest code, and opens a single pull request against your docs repository. A human reviews that PR and merges it. Once a week it also audits every chapter against the current code to catch drift.
+[![PyPI](https://img.shields.io/pypi/v/fidus.svg)](https://pypi.org/project/fidus/)
+[![Python](https://img.shields.io/pypi/pyversions/fidus.svg)](https://pypi.org/project/fidus/)
+[![CI](https://github.com/mustafarslan/fidus/actions/workflows/ci.yml/badge.svg)](https://github.com/mustafarslan/fidus/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-The documentation reads like a **computer-science textbook**. It is organised into Parts and Chapters that start with fundamentals and build up to advanced topics, all in plain Markdown. Fidus works with **Anthropic Claude**, **Google Gemini**, or **any OpenAI-compatible endpoint**. That last option covers open-weight models served by Ollama, vLLM, OpenRouter, Together and others. You bring your own API key.
+Fidus is an open-source documentation agent. Every night it looks at the pull requests merged
+into your repositories, updates the parts of your documentation they affect, and opens **one tidy
+pull request** for a person to review. Your docs stay accurate, and your team stays in charge.
+
+The documentation reads like a **textbook**: Parts and Chapters that start with the fundamentals
+and build up to advanced topics, in plain Markdown that works with any docs site. Fidus works with
+**Anthropic Claude**, **Google Gemini**, and **any OpenAI-compatible endpoint**, including
+open-weight models on Ollama, vLLM, OpenRouter or Together. You bring your own key.
 
 ```
- source repos (1..N)                         docs repo
-┌────────────────────┐   nightly 00:00 UTC   ┌──────────────────────────────────────┐
+ your source repos                            your docs repo
+┌────────────────────┐   every night         ┌──────────────────────────────────────┐
 │ acme/api   PR #412 ─┼──┐                    │ docs/                                │
-│ acme/web   PR #88  ─┼──┼─► Fidus agent ───► │   part-1-foundations/01-overview.md  │
-│ acme/infra PR #9   ─┼──┘   (your LLM)       │   part-2-core/01-auth.md   ◄─ edited │
-└────────────────────┘                        │ .fidus/state.json                    │
-                                              └──────────┬───────────────────────────┘
+│ acme/web   PR #88  ─┼──┼─► Fidus ─────────► │   part-1-foundations/01-overview.md  │
+│ acme/infra PR #9   ─┼──┘   (your model)     │   part-2-core/01-auth.md   ◄─ updated│
+└────────────────────┘                        └──────────┬───────────────────────────┘
                                                          ▼
-                                  PR "docs: Fidus nightly sync"  →  human review  →  merge
+                           one PR: "docs: Fidus nightly sync" → you review → merge
 ```
 
-> **New here?** Follow the [15-minute tutorial](docs/tutorial.md): try Fidus locally with no GitHub setup, then turn it into a nightly PR. To watch it behave over weeks in minutes, run the [simulator](docs/simulation.md).
+## Why teams like Fidus
+
+- **Docs that stay true.** Fidus updates only the chapters a change affects, with the smallest
+  correct edit, citing the source files it relied on.
+- **A review that takes minutes.** One rolling pull request, with a table of *what changed, why,
+  and which PR caused it*. Quiet nights produce no noise at all.
+- **Your words are safe.** Passages people add are recognised and preserved. Anything wrapped in
+  `<!-- fidus:keep -->` is never touched.
+- **You own the structure.** The book's outline is a plain YAML file you edit. Fidus fills in the
+  chapters and suggests improvements, and you decide.
+- **A weekly check-up.** Once a week every chapter is re-verified against the current code, so
+  small drifts don't pile up.
+- **Built to be trusted.** The agent can only read your code and write its own chapter. Every
+  change arrives as a pull request you approve.
+
+## See it in action in 5 minutes
+
+Try Fidus on your own code, on your own machine, with no GitHub setup:
+
+```bash
+pipx install 'fidus[all]'
+mkdir my-docs && cd my-docs && git init -q
+
+# Point it at a local checkout; use any provider (here: a local Ollama model)
+fidus init --source ../my-service --provider openai \
+  --model qwen3-coder --base-url http://localhost:11434/v1 -y
+
+fidus bootstrap --dry-run --output ./preview     # writes the whole book into ./preview
+```
+
+Open `preview/docs/` to read your book and `preview/pr-body.md` to see the pull request Fidus
+would open. The [15-minute tutorial](docs/tutorial.md) walks through this step by step. If you're
+curious how Fidus behaves over weeks, the [simulator](docs/simulation.md) plays out eight days of a
+team's life in a few minutes.
 
 ## Contents
 
 - [How it works](#how-it-works)
 - [Choosing how Fidus authenticates](#choosing-how-fidus-authenticates)
-- [Setup](#setup) (about 15 minutes)
-  1. [Create a docs repository](#1-create-a-docs-repository)
-  2. [Create the GitHub App](#2-create-the-github-app)
-  3. [Install Fidus and generate the outline](#3-install-fidus-and-generate-the-outline)
-  4. [Bootstrap the book](#4-bootstrap-the-book)
-  5. [Add the nightly workflow](#5-add-the-nightly-workflow)
-- [Quick start with a personal access token](#quick-start-with-a-personal-access-token-instead-of-an-app)
-- [Choosing an LLM provider](#choosing-an-llm-provider)
-- [Configuration](#configuration)
-- [The outline](#the-outline-your-books-table-of-contents)
-- [Daily review workflow](#daily-review-workflow)
+- [Setup](#setup)
+- [Works with your favourite models](#works-with-your-favourite-models)
+- [Configuration and the outline](#configuration-and-the-outline)
+- [Your daily review](#your-daily-review)
 - [Commands](#commands)
-- [Running locally and dry runs](#running-locally-and-dry-runs)
-- [Operations and FAQ](#operations-and-faq)
-- [Security model](#security-model)
+- [Confidence built in](#confidence-built-in)
+- [Security](#security)
+- [FAQ](#faq)
 - [Contributing](#contributing)
 
 ## How it works
 
-1. **Collect.** For each source repository, Fidus lists the PRs merged since its last run, reading their files and diffs from the GitHub API. For local sources it lists commits instead. Lockfiles, build output and files you exclude are filtered out.
-2. **Map.** Each changed file is matched against the `sources` globs of the chapters in your outline, so `api:src/auth/**` maps to the *Authentication* chapter. Files that no glob covers go to a single LLM triage call. Anything it can't place is listed for you in the PR, never silently dropped.
-3. **Write.** Each affected chapter gets its own **agent episode**. The agent reads the triggering PRs and explores a fresh clone of the latest code with `read_file`, `search_code` and `list_files`. It then edits the chapter with the **smallest correct change**, citing source files as `alias:path`. It cannot write anything except its own chapter file.
-4. **Check.** Every write is validated: the frontmatter must be present, links to other chapters must resolve, cited files must exist (without line numbers, which go stale), and human-protected `<!-- fidus:keep -->` blocks must be untouched. Problems already in a chapter are listed in the agent's brief so they get fixed too. If a fundamentals chapter renames a concept, the chapters that build on it get a short consistency pass. Within a run, a chapter always starts after the prerequisites it depends on.
-5. **Audit.** Once a week (you can change this), every chapter is re-verified against the current code. Ideas for restructuring the book are reported to you, never applied automatically.
-6. **Publish.** Everything goes into **one rolling PR** on the branch `fidus/sync`. The PR description is a table: chapter, the PR that triggered the change, and a one-line reason. If you don't merge for a few days, later changes accumulate in the same PR. Nights with nothing to do produce no PR at all.
+1. **Collect.** Fidus lists the pull requests merged into each source repository since its last
+   run, together with their changed files and diffs. Lockfiles, build output and anything you
+   exclude are filtered out.
+2. **Map.** Each changed file is matched to chapters through the `sources` globs in your outline,
+   so `api:src/auth/**` belongs to *Authentication*. Files no glob covers are placed with a quick
+   model call. Anything still unplaced is listed for you, never silently dropped.
+3. **Write.** Each affected chapter gets its own agent session. The agent reads the pull requests,
+   explores a fresh copy of the latest code, and makes the smallest correct edit, citing files as
+   `alias:path`.
+4. **Check.** Every edit is validated: the frontmatter, links between chapters, cited files,
+   human-protected blocks, and no invented examples. Chapters that depend on each other are
+   updated in order, and if a fundamentals chapter renames a concept, the chapters that build on it
+   get a short consistency pass.
+5. **Audit.** Weekly, every chapter is re-verified against the code, with hints about public
+   functions a chapter doesn't mention yet.
+6. **Publish.** Everything lands in **one rolling pull request** on the `fidus/sync` branch. If
+   you don't merge for a few days, later updates join the same PR.
 
-Progress is stored in `.fidus/state.json` on the PR branch, so **the cursor only advances when you merge**. Closing a PR without merging it means "skip these changes". Chapters that fail, run out of budget or don't fit into a night are remembered and retried, even if you merge in the meantime.
+Fidus's progress travels with that pull request, so it only moves forward when you merge. Closing
+a PR means "skip these changes". Chapters that fail or run out of budget are simply retried the
+next night.
 
 ## Choosing how Fidus authenticates
 
-Fidus needs a token that can read your source repos, including their merged PRs, and push a branch
-and open a PR on the docs repo. Pick one:
+Fidus needs a token that can read your source repositories and open a pull request on your docs
+repository. Pick whichever suits you:
 
-| Option | Setup | Use it when | Trade-offs |
+| Option | Setup | Great for | Good to know |
 |---|---|---|---|
-| **GitHub App** (recommended) | `fidus setup-app`, one click | Teams; private source repos | PRs come from `your-app[bot]`; short-lived tokens not tied to a person; your docs CI runs on its PRs |
-| **Built-in `GITHUB_TOKEN`** | None: `fidus init --write-workflow --auth github-token` | Sources are **public**, or the docs live **in the same repo** as the code | Can't read other private repos. PRs don't trigger other workflows. Needs *Settings → Actions → General → Allow GitHub Actions to create and approve pull requests* |
-| **Personal access token** | 5 minutes ([below](#quick-start-with-a-personal-access-token-instead-of-an-app)) | Personal projects, a quick trial | PRs appear as you; the token expires; it's tied to your account |
-
-The zero-setup workflow is in [`examples/workflows/fidus-github-token.yml`](examples/workflows/fidus-github-token.yml).
+| **GitHub App** (recommended) | `fidus setup-app`, one click | Teams and private repositories | PRs come from `your-app[bot]`; short-lived tokens that aren't tied to a person; your docs CI runs on its PRs |
+| **Built-in `GITHUB_TOKEN`** | None: `fidus init --write-workflow --auth github-token` | Public source repos, or docs in the same repo as the code | Reads only public repos and its own; PRs don't trigger other workflows; enable *Settings → Actions → General → Allow GitHub Actions to create and approve pull requests* |
+| **Personal access token** | About 5 minutes ([see below](#using-a-personal-access-token)) | Personal projects and quick trials | PRs appear as you, and the token eventually expires |
 
 ## Setup
 
-You need:
-- the source repositories you want documented
-- an empty (or existing) **docs repository**
-- permission to create a **GitHub App** in your organisation or on your account
-- an LLM API key
-
-Python 3.11 or newer is needed only for the one-time local steps.
+Setting Fidus up for your team takes about 15 minutes and is done once. You'll need the
+repositories you want documented, a docs repository (it can start empty), and an API key for your
+model.
 
 ### 1. Create a docs repository
 
-Create a repository such as `acme/docs`. Fidus writes Markdown under `docs/` and keeps its configuration (`fidus.yaml`, `fidus.outline.yaml`) at the repository root. The Markdown works with any static-site generator (MkDocs, Docusaurus, VitePress, mdBook) or with GitHub's own rendering.
+Create a repository such as `acme/docs`. Fidus writes Markdown under `docs/` and keeps its two
+settings files, `fidus.yaml` and `fidus.outline.yaml`, at the root. The Markdown works nicely with
+MkDocs, Docusaurus, VitePress, mdBook, or GitHub's own rendering.
 
 ### 2. Create the GitHub App
 
-The App gives Fidus its own identity, so its PRs come from `your-app[bot]` rather than a person, and it lets Fidus read your *other* private repositories.
-
-> **Fast path: one command.**
-> ```bash
-> pipx install fidus && gh auth login        # gh is optional but saves the credentials for you
-> fidus setup-app --docs-repo acme/docs      # add --org acme for an organization-owned App
-> ```
-> Your browser opens a pre-filled "Register new GitHub App" page with the right permissions and the webhook off. Click **Create GitHub App**. Fidus then saves the `FIDUS_APP_CLIENT_ID` variable and the `FIDUS_APP_PRIVATE_KEY` secret on your docs repo, and opens the install page. **Install it on the docs repo and every source repo**, add your LLM key secret, and skip to [step 3](#3-install-fidus-and-generate-the-outline).
->
-> The manual steps below do the same thing by hand.
-
-1. Open the page for a new GitHub App:
-   - For an **organisation**: *Settings → Developer settings → GitHub Apps → New GitHub App*, or `https://github.com/organizations/<org>/settings/apps/new`
-   - For a **personal account**: `https://github.com/settings/apps/new`
-2. Fill in the form:
-   - **GitHub App name**: for example `acme-fidus`. It must be unique on GitHub.
-   - **Homepage URL**: anything, for example your docs repo URL.
-   - **Webhook**: **uncheck "Active"**. Fidus runs on a schedule and needs no webhooks or server.
-3. Under **Repository permissions**, set:
-
-   | Permission | Access | Why |
-   |---|---|---|
-   | **Contents** | Read and write | Read the source code; push the `fidus/*` branches to the docs repo |
-   | **Pull requests** | Read and write | List merged PRs in the sources; open and update the docs PR |
-   | **Metadata** | Read-only | Mandatory for every App |
-
-   Leave everything else at *No access*. Fidus only ever **reads** the source repositories and never pushes to their branches. If you want the App itself to be unable to write to the source repos, see [two-App setup](docs/github-app.md#least-privilege-two-app-setup).
-4. **Where can this GitHub App be installed?** Choose *Only on this account*, then click **Create GitHub App**.
-5. On the App's page, note the **Client ID**. Then scroll to *Private keys* and click **Generate a private key**. A `.pem` file downloads.
-6. Click **Install App** in the sidebar and install it on your account or organisation. Choose **Only select repositories**, and pick **every source repository and the docs repository**. If a repository is missing here, Fidus can't read it.
-7. In the **docs repository**, go to *Settings → Secrets and variables → Actions* and add:
-
-   | Kind | Name | Value |
-   |---|---|---|
-   | Variable | `FIDUS_APP_CLIENT_ID` | the Client ID from step 5 |
-   | Secret | `FIDUS_APP_PRIVATE_KEY` | the **entire** contents of the `.pem` file, including the `BEGIN` and `END` lines |
-   | Secret | `ANTHROPIC_API_KEY` (or `GEMINI_API_KEY`, `OPENAI_API_KEY`, …) | your LLM key |
-
-> **Why not the built-in `GITHUB_TOKEN`?** `GITHUB_TOKEN` only covers the repository the workflow runs in, so it can't read your other private repositories. PRs it opens also don't trigger other workflows, which means your docs CI (link checks, preview deploys) wouldn't run on Fidus's PRs. The App token covers all of these.
-
-If your sources live under a **different owner** than the docs repo, or you're on GitHub Enterprise Server, see [docs/github-app.md](docs/github-app.md).
-
-### 3. Install Fidus and generate the outline
-
-On your machine, in a clone of the docs repository:
+One command does it:
 
 ```bash
-pipx install 'fidus[anthropic]'      # or fidus[gemini], fidus[openai], fidus[all]
+pipx install fidus && gh auth login        # gh is optional, and saves the credentials for you
+fidus setup-app --docs-repo acme/docs      # add --org acme for an organisation-owned App
+```
+
+Your browser opens a pre-filled *Register new GitHub App* page: the right permissions, the
+webhook off, and the App private. Click **Create GitHub App**. Fidus saves the App's credentials
+to your docs repository, as the `FIDUS_APP_CLIENT_ID` variable and the `FIDUS_APP_PRIVATE_KEY`
+secret, and opens the install page. Install the App on **the docs repo and every source repo**, then
+add your model key as a secret (for example `ANTHROPIC_API_KEY`).
+
+Prefer to click through it yourself, or need a two-App least-privilege setup or GitHub Enterprise
+Server? [docs/github-app.md](docs/github-app.md) has you covered.
+
+### 3. Install Fidus and draft the outline
+
+In a clone of your docs repository:
+
+```bash
+pipx install 'fidus[anthropic]'              # or fidus[gemini], fidus[openai], fidus[all]
 export ANTHROPIC_API_KEY=sk-ant-...
-export FIDUS_GITHUB_TOKEN=$(gh auth token)   # lets `init` clone your private source repos
+export FIDUS_GITHUB_TOKEN=$(gh auth token)   # lets `init` read your private source repos
 
 fidus init --source acme/api --source acme/web --write-workflow
 ```
 
-`fidus init` does three things:
-- It writes `fidus.yaml`, asking for your provider and model if you didn't pass them.
-- It writes `.github/workflows/fidus.yml`.
-- It has the agent study your repositories and **propose `fidus.outline.yaml`**: Parts and Chapters ordered from fundamentals to advanced, each chapter mapped to source globs.
+Fidus writes `fidus.yaml` and a nightly workflow, studies your code, and **proposes
+`fidus.outline.yaml`**, a table of contents ordered from fundamentals to advanced. If the proposal
+misses parts of your code, it takes a second pass to fill the gaps.
 
-If the proposed chapters leave more than 10% of your source files uncovered, `init` automatically runs one repair round that asks the agent to close the gaps.
-
-**Now edit the outline.** It is the single source of truth for the book's structure. Rename, reorder, merge and split chapters, and fix the `sources` globs. Then check it:
+Now make the outline yours: rename, reorder, merge or split chapters. Then check it:
 
 ```bash
-fidus validate        # schema checks and a coverage report per source repo
+fidus validate        # checks the files and shows how much of your code each repo's chapters cover
 ```
 
-### 4. Bootstrap the book
+### 4. Write the book
 
-Commit and push `fidus.yaml` and `fidus.outline.yaml` first. Fidus always works from your pushed default branch, and it refuses to run on uncommitted changes. Then either run it locally:
+Commit and push your two settings files, then let Fidus write every chapter in one pull request:
 
 ```bash
 git add fidus.yaml fidus.outline.yaml .github && git commit -m "Add Fidus" && git push
-fidus bootstrap       # writes every chapter, opens a "Fidus bootstrap" PR (leaves your clone on fidus/bootstrap)
+fidus bootstrap
 ```
 
-or commit `fidus.yaml`, `fidus.outline.yaml` and the workflow, and run the workflow once with `command: bootstrap` (see [below](#bootstrap-from-actions)). Review the bootstrap PR, edit anything you like, and merge it. Nightly syncs start from that point.
+Review the bootstrap PR, polish anything you like, and merge. To preview first, add
+`--dry-run --output ./preview`. You can also bootstrap from GitHub Actions by running the action
+once with `command: bootstrap`.
 
-To preview without touching GitHub, run `fidus bootstrap --dry-run --output ./preview`.
+### 5. Turn on the nightly run
 
-### 5. Add the nightly workflow
+`fidus init --write-workflow` created `.github/workflows/fidus.yml`; a copy lives in
+[`examples/workflows/fidus.yml`](examples/workflows/fidus.yml). Commit it, then run it once from
+*Actions → Fidus nightly docs sync → Run workflow* with **dry-run** ticked. From then on it runs
+every night at 00:00 UTC.
 
-`fidus init --write-workflow` already created `.github/workflows/fidus.yml`. A copy is in [`examples/workflows/fidus.yml`](examples/workflows/fidus.yml):
+### Using a personal access token
 
-```yaml
-name: Fidus nightly docs sync
-on:
-  schedule:
-    - cron: "0 0 * * *"          # 00:00 UTC
-  workflow_dispatch:
-    inputs:
-      mode: { type: choice, options: [auto, sync, audit, full], default: auto }
-      dry-run: { type: boolean, default: false }
-
-concurrency: { group: fidus-${{ github.repository }}, cancel-in-progress: false }
-permissions: { contents: read }  # writes use the App token
-
-jobs:
-  sync:
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-    env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-    steps:
-      - id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          client-id: ${{ vars.FIDUS_APP_CLIENT_ID }}
-          private-key: ${{ secrets.FIDUS_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}   # one token for every repo the App is installed on
-      - id: bot   # the App's bot user id, so commits are attributed to it
-        env: { GH_TOKEN: "${{ steps.app-token.outputs.token }}", SLUG: "${{ steps.app-token.outputs.app-slug }}" }
-        run: echo "id=$(gh api "/users/${SLUG}%5Bbot%5D" --jq .id)" >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@v7
-        with: { token: "${{ steps.app-token.outputs.token }}", fetch-depth: 0, persist-credentials: false }
-      - uses: mustafarslan/fidus@v1
-        with:
-          github-token: ${{ steps.app-token.outputs.token }}
-          mode: ${{ inputs.mode || 'auto' }}
-          dry-run: ${{ inputs.dry-run || 'false' }}
-          git-user-name: ${{ steps.app-token.outputs.app-slug }}[bot]
-          git-user-email: ${{ steps.bot.outputs.id }}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com
-```
-
-Commit it, then trigger it once by hand under *Actions → Fidus nightly docs sync → Run workflow*, with `dry-run` ticked, to check everything is wired up. The dry-run output is uploaded as an artifact.
-
-#### Bootstrap from Actions
-
-To bootstrap from CI instead of locally, add a temporary step, or a second `workflow_dispatch` workflow, that uses the action with `command: bootstrap`:
-
-```yaml
-      - uses: mustafarslan/fidus@v1
-        with:
-          command: bootstrap
-          github-token: ${{ steps.app-token.outputs.token }}
-```
-
-## Quick start with a personal access token (instead of an App)
-
-This is fine for trying Fidus out or for a personal project. Create a **fine-grained personal access token** with access to the source repositories and the docs repository, with *Contents: Read and write*, *Pull requests: Read and write* and *Metadata: Read*. Store it as the secret `FIDUS_GITHUB_TOKEN`, then replace the `create-github-app-token` step:
+Create a **fine-grained personal access token** for the source and docs repositories with
+*Contents: Read and write*, *Pull requests: Read and write* and *Metadata: Read*. Store it as the
+`FIDUS_GITHUB_TOKEN` secret, and use it in place of the App token in the workflow:
 
 ```yaml
       - uses: actions/checkout@v7
@@ -230,67 +197,52 @@ This is fine for trying Fidus out or for a personal project. Create a **fine-gra
           github-token: ${{ secrets.FIDUS_GITHUB_TOKEN }}
 ```
 
-The drawbacks: PRs appear as *you*, the token expires, and it is tied to one person's access. Switch to the App for team use.
+## Works with your favourite models
 
-## Choosing an LLM provider
-
-Set `llm` in `fidus.yaml` and put the key in the environment variable named by `api_key_env`. Keys are **never** stored in the YAML.
+Pick a provider in `fidus.yaml`. Keys always stay in environment variables, never in the file.
 
 ```yaml
-# Anthropic Claude (default)
-llm: { provider: anthropic, model: claude-opus-5, api_key_env: ANTHROPIC_API_KEY }
-
-# Google Gemini
-llm: { provider: gemini, model: gemini-3.8-flash, api_key_env: GEMINI_API_KEY }
-
-# OpenAI
-llm: { provider: openai, model: gpt-6-sol, api_key_env: OPENAI_API_KEY }
-
-# Open-weight models through any OpenAI-compatible server
-llm: { provider: openai, model: qwen3-coder, base_url: "http://localhost:11434/v1" }            # Ollama
-llm: { provider: openai, model: meta-llama/Llama-4-Maverick, base_url: "http://gpu-box:8000/v1" } # vLLM
-llm: { provider: openai, model: deepseek/deepseek-v3, base_url: "https://openrouter.ai/api/v1", api_key_env: OPENROUTER_API_KEY }
+llm: { provider: anthropic, model: claude-opus-5 }                                    # Anthropic Claude
+llm: { provider: gemini, model: gemini-3.8-flash }                                    # Google Gemini
+llm: { provider: openai, model: gpt-6-sol }                                           # OpenAI
+llm: { provider: openai, model: qwen3-coder, base_url: "http://localhost:11434/v1" }  # Ollama
+llm: { provider: openai, model: deepseek/deepseek-v3, base_url: "https://openrouter.ai/api/v1",
+       api_key_env: OPENROUTER_API_KEY }                                              # OpenRouter
 ```
 
-- **Models without reliable native tool calling.** Many small open-weight models fall in this group. The default `tool_protocol: auto` uses native tool calls. When a server returns an empty reply, which usually means it dropped a tool call it couldn't parse, Fidus retries that turn through a plain-JSON tool protocol that works with any chat model, and stays on it. Set `json` to use it from the start, or `native` to disable the fallback.
-- **Cheaper triage.** `triage_model` can point the file-to-chapter triage call at a smaller, cheaper model.
-- **Cost reporting.** Add `pricing: {input_per_mtok, output_per_mtok}` to show estimated dollar costs in the PR. Token counts are always shown.
-- **Claude refusal fallbacks.** On Claude models that support them (Opus 5 and newer), Fidus turns on Anthropic's server-side refusal fallback (`fallbacks: "default"`). A request that a safety classifier declines is retried on Anthropic's recommended fallback model instead of failing the chapter. Disable it with `llm.fallbacks: false`.
+A few extras:
+- **Smaller open-weight models work too.** If a model or server stumbles over tool calls, Fidus
+  notices and switches to a simple JSON protocol automatically.
+- **A cheaper triage model.** Use `triage_model` for the quick "which chapter is this?" step.
+- **Cost estimates.** Add `pricing` to see estimated costs in each PR. Token counts are always
+  shown.
+- **Refusal fallbacks.** On Claude models that support them, a request declined by a safety filter
+  is retried on Anthropic's recommended fallback model.
 
-More detail is in [docs/providers.md](docs/providers.md).
+See [docs/providers.md](docs/providers.md) for details.
 
-## Configuration
+## Configuration and the outline
 
-A complete, commented example is in [`examples/fidus.yaml`](examples/fidus.yaml), and every key is documented in [docs/configuration.md](docs/configuration.md). The essentials:
+Everything lives in two small files in your docs repo.
+
+**`fidus.yaml`** says what to document and how:
 
 ```yaml
 version: 1
-docs:
-  dir: docs                       # where chapters live
-  outline: fidus.outline.yaml
-sources:                          # one or more
-  - repo: acme/api
-    alias: api                    # used in outline globs and citations: api:src/x.py
-    include: ["src/**", "README.md"]
-    exclude: ["**/tests/**"]
-  - repo: acme/web
-    alias: web
-llm:
-  provider: anthropic
-  model: claude-opus-5
-schedule:
-  audit: { enabled: true, every_days: 7 }
-sync:
-  branch: fidus/sync
-  labels: [documentation, fidus]
-  reviewers: [alice]              # requested on each new PR
+docs: { dir: docs, outline: fidus.outline.yaml }
+sources:
+  - { repo: acme/api, alias: api, include: ["src/**", "README.md"], exclude: ["**/tests/**"] }
+  - { repo: acme/web, alias: web }
+llm: { provider: anthropic, model: claude-opus-5 }
+schedule: { audit: { enabled: true, every_days: 7 } }
+sync: { labels: [documentation, fidus], reviewers: [alice] }
 ```
 
-## The outline: your book's table of contents
+**`fidus.outline.yaml`** is your book's table of contents:
 
 ```yaml
 version: 1
-title: "The Acme Platform: A Textbook"
+title: "The Acme Platform"
 parts:
   - id: foundations
     title: "Part I: Foundations"
@@ -298,34 +250,36 @@ parts:
       - id: overview
         title: What Acme Is and How It Is Built
         path: part-1-foundations/01-overview.md
-        level: fundamentals              # fundamentals | intermediate | advanced
-        summary: System context, main components, request lifecycle.
+        level: fundamentals
         sources: ["api:README.md", "api:src/app.py", "web:src/main.ts"]
       - id: auth
         title: Authentication and Sessions
         path: part-1-foundations/02-auth.md
         level: intermediate
         sources: ["api:src/auth/**", "web:src/lib/session.ts"]
-        prerequisites: [overview]        # must be EARLIER chapters
+        prerequisites: [overview]
 ```
 
-Rules:
-- **Only you change the structure.** Nightly runs never add, remove or reorder chapters.
-- **New chapters flow in automatically.** Add a chapter to the outline, merge it, and the next nightly run writes it.
-- **Removed chapters are reported, not deleted.** Their files are listed under *Needs attention*.
-- **Audit suggestions stay suggestions.** Structure ideas from the audit appear in the PR description. With `schedule.audit.structure_proposals: pr`, they arrive as a separate `fidus/outline` PR instead.
-- **Chapter numbers are computed.** Numbers like "2.1" come from each chapter's position, so reordering never breaks file paths.
-- **The table of contents is generated.** `docs/README.md` is rebuilt from the outline on every run.
+- **The structure is yours.** Nightly runs never add, remove or reorder chapters.
+- **New chapters are written for you.** Add a chapter to the outline and merge; the next night
+  writes it.
+- **Suggestions, not surprises.** Restructuring ideas from the audit appear in the PR (or as a
+  separate outline PR, if you prefer).
 
-## Daily review workflow
+The complete reference is in [docs/configuration.md](docs/configuration.md), with every option in
+[`examples/fidus.yaml`](examples/fidus.yaml).
 
-- **One PR.** `docs: Fidus nightly sync` is updated in place every night until you merge it.
-- **Merging** publishes the docs and advances Fidus's cursor.
-- **Closing without merging** rejects the batch. Those source changes are skipped, and the next PR notes which ones. To have Fidus **regenerate** them instead, delete the `fidus/sync` branch as well after closing. The weekly audit catches any drift either way.
-- **Editing on the branch** is fine; Fidus keeps your commits. If `main` later conflicts with your edits, Fidus **pauses**: it marks the PR and waits instead of overwriting your work. Merge or close the PR to resume.
-- **Needs attention.** This section of the PR lists files no chapter covers, with suggested `sources` globs to paste into the outline. It also lists chapters that keep failing: after `limits.max_retry_attempts` failures they are marked **Needs a human** and no longer retried automatically.
-- **Human edits are kept.** Lines people add to a Fidus-maintained chapter, on `main` or on the PR branch, are detected with `git blame` and listed in the agent's brief as passages to preserve. If a rewrite drops one, validation flags it. This is a strong nudge, not a guarantee: when the code contradicts the passage the model may still remove it, and the removal shows up in the PR.
-- **Protecting prose.** For a guarantee, wrap hand-written passages to keep them verbatim forever:
+## Your daily review
+
+- **One pull request,** updated in place until you merge it. Its description shows each chapter
+  that changed, the source PR behind it, and a one-line reason.
+- **Merge** to publish. **Close** to skip that batch; delete the `fidus/sync` branch too if you'd
+  like those changes regenerated instead.
+- **Edit freely** on the PR branch. Fidus keeps your commits, and if they ever conflict with `main`
+  it pauses politely instead of overwriting anything.
+- **"Needs attention"** points out files no chapter covers, with ready-to-paste outline globs, and
+  any chapter that needs a human look.
+- **Keep text exactly as written** by wrapping it:
 
   ```markdown
   <!-- fidus:keep -->
@@ -337,66 +291,71 @@ Rules:
 
 | Command | What it does |
 |---|---|
-| `fidus init` | Write `fidus.yaml` (and optionally the workflow), then have the agent propose the outline |
-| `fidus validate [--offline] [--strict]` | Check config and outline; report source coverage, missing chapters and orphaned files |
-| `fidus bootstrap [--chapters a,b] [--resume]` | Write every chapter and open the bootstrap PR |
-| `fidus run [--mode auto\|sync\|audit\|full]` | The nightly job. `auto` = sync, plus an audit when one is due |
-| `fidus doctor [--ping]` | Check git, tokens, repo access, SDK and key; `--ping` tests tool calling |
-| `fidus state show \| set-cursor \| clear-retry` | Inspect or move the run cursor; drop retries or lift a quarantine |
+| `fidus init` | Create `fidus.yaml` (and the workflow) and draft the outline |
+| `fidus validate` | Check your settings and show how well your code is covered |
+| `fidus bootstrap` | Write every chapter and open the first pull request |
+| `fidus run` | The nightly job: sync, plus the weekly audit when it's due |
+| `fidus setup-app` | Create the GitHub App in one click |
+| `fidus doctor --ping` | Check tokens, repository access, push permission and your model |
+| `fidus state show \| set-cursor \| clear-retry` | Look at or adjust Fidus's progress |
 
-Common flags:
-- `--dry-run --output DIR` writes the would-be docs, `state.json`, `pr-body.md`, `run.json` and `diff.patch` locally, with no GitHub writes.
-- `--provider fake` runs fully offline, with no LLM.
-- `--since 2026-09-01` processes changes merged after a date.
-- `--chapters auth,overview` limits the run to those chapters.
+Handy flags: `--dry-run --output DIR` previews everything locally, `--provider fake` runs offline
+with no model, `--since 2026-09-01` processes changes after a date, and `--chapters auth,overview`
+focuses on a few chapters.
 
-Exit codes: `0` for success or a quiet night, `1` for an error, `2` for invalid config, `3` when some chapters failed but a PR was still produced.
+## Confidence built in
 
-## Running locally and dry runs
+Fidus is tested the way it's used:
 
-```bash
-# Full pipeline, no GitHub writes, no LLM: good for checking your outline globs
-fidus run --dry-run --provider fake --since 2026-09-01 --output ./out
-cat out/pr-body.md && cat out/diff.patch
+- **A simulator.** `python -m fidus.sim tests/sim/realistic.yaml` runs the real `fidus` command
+  against a local stand-in for GitHub over eight scripted days: features shipping, a reviewer away,
+  hand edits, a merge conflict, a rejected PR, a new chapter and the weekly audit. It runs in CI on
+  every change, and with a real model it shows how the docs actually evolve.
+  [Read more](docs/simulation.md).
+- **An accuracy check.** `python -m fidus.bench.accuracy DOCS_DIR -c fidus.yaml` asks a judge model
+  to verify each chapter's claims against the code it cites, with quoted evidence.
+- **A thorough test suite,** including a multi-night lifecycle against real git repositories.
 
-# The same with your real model
-fidus run --dry-run --output ./out
-```
+## Security
 
-Sources can be local paths (`- path: ../my-service`), in which case Fidus treats each commit as a change. That is handy for local use and for monorepos checked out next to the docs.
+- **Least privilege by design.** The agent can read only your source code and write only the one
+  chapter it's working on. There are no shell or network tools.
+- **Untrusted input stays untrusted.** PR descriptions, diffs and code are treated as data, never as
+  instructions.
+- **Secrets stay secret.** Every write is scanned for keys and tokens before it lands.
+- **Minimal permissions.** The workflow needs only `contents: read`; writes go through the App's
+  short-lived token.
+- **People have the final say.** Nothing reaches your default branch until someone merges it.
 
-A container image is also possible: `docker build -t fidus .`, then run `docker run --rm -v "$PWD:/work" -w /work -e ANTHROPIC_API_KEY fidus run --dry-run`.
+More in [docs/security.md](docs/security.md).
 
-## Operations and FAQ
+## FAQ
 
-- **The run didn't start at exactly midnight.** GitHub delays scheduled workflows under load, and 00:00 UTC is the busiest minute. Fidus is cursor-based, so a late run loses nothing. Use a cron such as `7 0 * * *` if you prefer.
-- **Scheduled workflows stopped.** In public repositories GitHub disables them after 60 days without activity. Merging Fidus's PRs counts as activity. If it happens, re-enable the workflow in the Actions tab.
-- **Cost.** Fidus only touches affected chapters and caps every episode (turns and tokens) and every run (`budgets.run.max_total_tokens`). Chapters that don't fit in the budget are carried to the next night. The PR shows token usage for each run.
-- **Large repositories.** Sources are cloned with `--depth 1`, optionally with a sparse checkout (`sparse: true`). Diffs come from the API and are truncated per file and per PR, and the agent reads files on demand.
-- **Monorepos.** Use one source with several `alias`es and `include` globs, or a single alias with precise outline globs.
-- **GitHub Enterprise Server.** Set `github.api_url` and `github.server_url` in `fidus.yaml`.
-- **Something's off.** Run `fidus doctor`, and see [docs/troubleshooting.md](docs/troubleshooting.md).
+**Does it run exactly at midnight?** GitHub may start scheduled runs a little late at busy times.
+Fidus picks up exactly where it left off, so nothing is missed.
 
-## Security model
+**What does it cost?** Fidus only touches the chapters a change affects, and every run has a token
+budget you control. Each PR shows the tokens used.
 
-- **Read-only tools.** The agent can only read files inside fresh clones of your sources, and only write **its one assigned chapter file**. There are no shell or network tools. Paths are resolved and checked for containment, symlinks are refused, and hidden paths, `.github/`, the config and the outline are never writable.
-- **Untrusted input.** PR titles, descriptions, diffs and code are wrapped as untrusted data, and the agent is instructed never to follow instructions found in them.
-- **Secret scanning.** Every write is scanned for token and key patterns, and for the literal values of your configured secrets, before it lands.
-- **Minimal workflow permissions.** The workflow has no `pull_request` trigger and needs only `contents: read`. All writes go through the App token.
-- **Human review.** Nothing reaches your default branch without a human merging the PR. That review is the final safety boundary.
+**Will it work on a big repository or a monorepo?** Yes. Sources are cloned shallowly (sparse
+checkouts are supported), the agent reads files on demand, and globs can slice a monorepo into as
+many areas as you like.
 
-Details: [docs/security.md](docs/security.md).
+**GitHub Enterprise Server?** Supported: set `github.api_url` and `github.server_url`.
+
+**Something doesn't look right?** Run `fidus doctor`, and see
+[docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## Contributing
 
-Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). The quick version:
+Contributions are very welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) to get started:
 
 ```bash
 uv sync --all-extras
 uv run pytest && uv run ruff check && uv run mypy
 ```
 
-The design rationale is in [docs/design.md](docs/design.md).
+The design notes are in [docs/design.md](docs/design.md).
 
 ## License
 

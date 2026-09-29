@@ -17,6 +17,31 @@ the variations.
 - **Installing is still yours to do:** the command opens the install page at the end. Pick the docs
   repo and every source repo.
 
+## Creating the App by hand
+
+`fidus setup-app` does all of this for you. If you'd rather click through it yourself:
+
+1. Open the new-App page: `https://github.com/settings/apps/new` for a personal account, or
+   `https://github.com/organizations/<org>/settings/apps/new` for an organisation.
+2. Fill in:
+   - a **name**, such as `acme-fidus`; it must be unique on GitHub
+   - any **homepage URL**, for example your docs repo
+   - **Webhook:** untick *Active*, since Fidus runs on a schedule and needs no webhook
+3. Under **Repository permissions**, set **Contents: Read and write**, **Pull requests: Read and
+   write** and **Metadata: Read-only**. Leave everything else at *No access*.
+4. Choose *Only on this account* and click **Create GitHub App**.
+5. Note the **Client ID**, then under *Private keys* click **Generate a private key**. A `.pem` file
+   downloads.
+6. Click **Install App**, choose **Only select repositories**, and pick the docs repo and every
+   source repo.
+7. In the docs repo, open *Settings → Secrets and variables → Actions* and add:
+
+   | Kind | Name | Value |
+   |---|---|---|
+   | Variable | `FIDUS_APP_CLIENT_ID` | the Client ID |
+   | Secret | `FIDUS_APP_PRIVATE_KEY` | the whole `.pem` file, including the `BEGIN`/`END` lines |
+   | Secret | `ANTHROPIC_API_KEY` (or your provider's key) | your model API key |
+
 ## What the token needs
 
 | Where | Permission | Used for |
