@@ -87,7 +87,7 @@ If you like what you see, move on to the real setup.
 2. **Switch sources to GitHub.** In `fidus.yaml`, replace `path: ../my-service` with
    `repo: acme/my-service`, keeping the same `alias`, so the outline globs still match. Commit and
    push.
-3. **Create the GitHub App.** Follow [Create the GitHub App](../README.md#2-create-the-github-app):
+3. **Create the GitHub App.** The fastest way is `fidus setup-app --docs-repo acme/docs` (one click in the browser; see [Create the GitHub App](../README.md#2-create-the-github-app)). By hand it takes:
    - permissions: Contents (read and write), Pull requests (read and write), Metadata (read)
    - install it on the docs repo **and** every source repo
    - add the `FIDUS_APP_CLIENT_ID` variable and the `FIDUS_APP_PRIVATE_KEY` secret, plus your LLM

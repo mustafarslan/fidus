@@ -1,7 +1,21 @@
 # GitHub App setup, in depth
 
-The [README](../README.md#2-create-the-github-app) has the standard walkthrough. This page covers
+The [README](../README.md#2-create-the-github-app) has the standard walkthrough, and
+`fidus setup-app` creates the App in one click with GitHub's App-manifest flow. This page covers
 the variations.
+
+## `fidus setup-app`
+
+- **Options:** `--org ACME` creates the App under an organization (you need to be an org owner or
+  an App manager). `--name` picks the App name (default `<owner>-fidus`; it must be unique on
+  GitHub). `--github-url` / `--api-url` point it at GitHub Enterprise Server.
+- **Where credentials go:** with `gh` logged in and `--docs-repo` given, they're saved as the docs
+  repo's `FIDUS_APP_CLIENT_ID` variable and `FIDUS_APP_PRIVATE_KEY` secret. Otherwise (or with
+  `--no-gh`) the private key is written to `<slug>.private-key.pem` (mode 0600) for you to store
+  and then delete.
+- **Timing:** the code GitHub returns is valid for one hour; the command waits up to 15 minutes.
+- **Installing is still yours to do:** the command opens the install page at the end. Pick the docs
+  repo and every source repo.
 
 ## What the token needs
 

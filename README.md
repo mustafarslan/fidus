@@ -69,6 +69,15 @@ Create a repository such as `acme/docs`. Fidus writes Markdown under `docs/` and
 
 The App gives Fidus its own identity, so its PRs come from `your-app[bot]` rather than a person, and it lets Fidus read your *other* private repositories.
 
+> **Fast path: one command.**
+> ```bash
+> pipx install fidus && gh auth login        # gh is optional but saves the credentials for you
+> fidus setup-app --docs-repo acme/docs      # add --org acme for an organization-owned App
+> ```
+> Your browser opens a pre-filled "Register new GitHub App" page with the right permissions and the webhook off. Click **Create GitHub App**. Fidus then saves the `FIDUS_APP_CLIENT_ID` variable and the `FIDUS_APP_PRIVATE_KEY` secret on your docs repo, and opens the install page. **Install it on the docs repo and every source repo**, add your LLM key secret, and skip to [step 3](#3-install-fidus-and-generate-the-outline).
+>
+> The manual steps below do the same thing by hand.
+
 1. Open the page for a new GitHub App:
    - For an **organisation**: *Settings → Developer settings → GitHub Apps → New GitHub App*, or `https://github.com/organizations/<org>/settings/apps/new`
    - For a **personal account**: `https://github.com/settings/apps/new`
