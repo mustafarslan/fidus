@@ -239,6 +239,52 @@ def doctor(
         raise typer.Exit(1)
 
 
+@app.command("setup-app")
+def setup_app(
+    org: Annotated[
+        str | None,
+        typer.Option(help="Create the App in this organization (default: your account)."),
+    ] = None,
+    docs_repo: Annotated[
+        str | None,
+        typer.Option(help="owner/name of the docs repo: credentials are saved there with gh."),
+    ] = None,
+    name: Annotated[
+        str | None,
+        typer.Option(help="App name (default: <owner>-fidus); must be unique on GitHub."),
+    ] = None,
+    github_url: Annotated[
+        str, typer.Option(help="GitHub web URL (GitHub Enterprise Server: your host).")
+    ] = "https://github.com",
+    api_url: Annotated[str, typer.Option(help="GitHub API URL.")] = "https://api.github.com",
+    no_browser: Annotated[
+        bool, typer.Option("--no-browser", help="Print the URL instead of opening it.")
+    ] = False,
+    no_gh: Annotated[
+        bool, typer.Option("--no-gh", help="Don't use gh; write the key to a file instead.")
+    ] = False,
+    verbose: VerboseOpt = False,
+) -> None:
+    """Create the Fidus GitHub App in one click (GitHub App manifest flow) and store its credentials."""
+    setup_logging(verbose)
+    from fidus.cli.setup_app import run_setup_app
+
+    try:
+        run_setup_app(
+            org=org,
+            docs_repo=docs_repo,
+            name=name,
+            github_url=github_url,
+            api_url=api_url,
+            open_browser=not no_browser,
+            use_gh=not no_gh,
+            out_dir=Path.cwd(),
+            echo=console.print,
+        )
+    except FidusError as e:
+        _fail(e)
+
+
 @state_app.command("show")
 def state_show(
     ref: Annotated[
