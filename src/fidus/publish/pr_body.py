@@ -126,7 +126,15 @@ def render_pr_body(
         if t.status == "failed":
             attention.append(f"Could not process {_trigger_link(t)}; it will be retried.")
     for e in retry or []:
-        attention.append(f"Incomplete, retried next run: `{e.chapter}` ({_esc(e.reason)})")
+        if e.quarantined:
+            attention.insert(
+                0,
+                f"**Needs a human:** `{e.chapter}` failed {e.attempts} times and is no longer "
+                f"retried automatically ({_esc(e.reason)}). A later successful update of the "
+                "chapter clears this.",
+            )
+        else:
+            attention.append(f"Incomplete, retried next run: `{e.chapter}` ({_esc(e.reason)})")
     if pending.rejected:
         attention.append(
             f"Skipped {len(pending.rejected)} change(s) because the previous Fidus PR was closed "
