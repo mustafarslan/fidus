@@ -182,4 +182,6 @@ days:
       - {repo: acme/api, title: "Test: order totals", files: {tests/test_totals.py: "def test_totals():\n    assert 1\n"}}
       - {repo: acme/api, title: "Test: tokens", files: {tests/test_tokens.py: "def test_tokens():\n    assert 1\n"}}
       - {repo: acme/api, title: "Test: cache", files: {tests/test_cache.py: "def test_cache():\n    assert 1\n"}}
-    expect: {pr: open, unchanged: true, body_contains: "no documentation impact"}
+    # ...and the human's note must still be there after a week of updates and the audit.
+    expect: {pr: open, unchanged: true, body_contains: "no documentation impact",
+             chapter_contains: {auth: "Hotfix note added directly on main."}}

@@ -91,9 +91,23 @@ def known_problems(ctx: EpisodeContext) -> str:
     )
 
 
+def human_additions(ctx: EpisodeContext) -> str:
+    """Passages people added since Fidus last edited the chapter: keep them."""
+    if not ctx.human_lines:
+        return ""
+    items = "\n".join(f"- {line}" for line in ctx.human_lines)
+    return (
+        "### Human additions (preserve)\n"
+        "People added these lines to this Fidus-maintained chapter. Keep them, editing around\n"
+        "them, unless the current code contradicts them (then say so in `done`):\n"
+        + wrap_untrusted("human-additions", items)
+        + "\n\n"
+    )
+
+
 def chapter_brief(ctx: EpisodeContext, *, changes: str = "") -> str:
     values = _chapter_values(ctx)
-    values["known_problems"] = known_problems(ctx)
+    values["known_problems"] = known_problems(ctx) + human_additions(ctx)
     if ctx.mode == "sync":
         return render("chapter_sync", triggers=format_triggers(ctx.triggers), **values)
     if ctx.mode == "audit":

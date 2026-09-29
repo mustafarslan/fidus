@@ -44,6 +44,9 @@ The first release.
 - **Simulator:** `python -m fidus.sim SCENARIO` runs the real CLI against a local fake GitHub over
   scripted days (reviewer merges and closes, conflicts, outline edits, a simulated clock), with a
   Markdown timeline report. The built-in 8-day scenario runs in CI (#49).
+- **Human edits kept:** lines people add to Fidus-maintained chapters are detected with `git blame`,
+  listed in the brief as passages to preserve, and flagged if a rewrite drops them. Found with the
+  simulator (#50).
 - **Bootstrap branch cleanup:** the merged `fidus/bootstrap` branch is cleaned up by the next
   nightly run.
 - **Accuracy benchmark:** `python -m fidus.bench.accuracy` has a judge model check chapters

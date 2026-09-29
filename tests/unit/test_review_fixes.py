@@ -294,3 +294,24 @@ def test_invented_examples_are_flagged(tmp_path: Path, cfg: FidusConfig, outline
         + "```python\n# Returns True for every user today.\ndef login(user):\n    return True\n```\n"
     )
     assert validate_chapter(fine, ctx) == []
+
+
+def test_dropping_human_lines_is_flagged(
+    tmp_path: Path, cfg: FidusConfig, outline: Outline
+) -> None:
+    from fidus.agent.prompts import human_additions
+
+    (tmp_path / "docs").mkdir()
+    ctx = EpisodeContext(
+        mode="sync",
+        cfg=cfg,
+        repo_root=tmp_path,
+        workspaces={},
+        outline=outline,
+        chapter=outline.get("auth"),
+        human_lines=["Hotfix note from a human on call."],
+    )
+    head = "---\ntitle: A\nfidus:\n  chapter: auth\n---\n# A\n"
+    assert any("a person added" in p for p in validate_chapter(head + "Rewritten.\n", ctx))
+    assert validate_chapter(head + "Rewritten.\n\nHotfix note from a human\non call.\n", ctx) == []
+    assert "Human additions (preserve)" in human_additions(ctx)

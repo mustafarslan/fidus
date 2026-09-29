@@ -111,7 +111,16 @@ def validate_chapter(content: str, ctx: EpisodeContext) -> list[str]:
             "instead of an imagined change or invented example"
         )
 
-    # 5. Human-protected blocks are untouched.
+    # 5. Lines people added to this Fidus-maintained chapter survive.
+    squashed = re.sub(r"\s+", " ", content)
+    dropped = [ln for ln in ctx.human_lines if re.sub(r"\s+", " ", ln) not in squashed]
+    if dropped:
+        problems.append(
+            f"{len(dropped)} line(s) a person added to this chapter were removed "
+            f"(first: {dropped[0][:80]!r}); keep them unless the current code contradicts them"
+        )
+
+    # 6. Human-protected blocks are untouched.
     before = keep_blocks(ctx.original_doc)
     if before and keep_blocks(content) != before:
         problems.append(

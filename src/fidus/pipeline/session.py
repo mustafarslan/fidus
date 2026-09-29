@@ -256,6 +256,12 @@ class Session:
         )
         if ctx.chapter_path is not None:
             ctx.original_doc = read_text_or_none(ctx.chapter_path)
+            if self.repo is not None and ctx.original_doc is not None and chapter is not None:
+                rel = f"{self.cfg.docs.dir}/{chapter.path}"
+                try:
+                    ctx.human_lines = self.repo.human_lines(rel, self.author.email)
+                except FidusError:
+                    ctx.human_lines = []
         return ctx
 
     def run_chapter_episodes(
