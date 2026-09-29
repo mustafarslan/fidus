@@ -1,4 +1,7 @@
-# Tag vX.Y.Z to publish to PyPI (trusted publishing) and move the vX major tag used by the action.
+# Tag vX.Y.Z to release: build -> TestPyPI -> PyPI (trusted publishing) -> GitHub release + move vX.
+# Versions already on an index are skipped, so re-running or tagging a manual upload is safe.
+# One-time setup: add a trusted publisher on pypi.org and test.pypi.org for
+#   owner mustafarslan, repo fidus, workflow release.yml, environment pypi / testpypi.
 name: Release
 on:
   push:
@@ -10,23 +13,50 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
       - run: uv build
+      - id: v
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v7
         with: { name: dist, path: dist }
 
-  pypi:
+  testpypi:
     needs: build
     runs-on: ubuntu-latest
-    environment: pypi          # configure a PyPI trusted publisher for this repo/workflow/environment
+    environment: testpypi
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v8
+      - id: exists
+        env: { VERSION: "${{ needs.build.outputs.version }}" }
+        run: echo "found=$(curl -s -o /dev/null -w '%{http_code}' "https://test.pypi.org/pypi/fidus/${VERSION}/json")" >> "$GITHUB_OUTPUT"
+      - if: steps.exists.outputs.found != '200'
+        uses: actions/download-artifact@v8
         with: { name: dist, path: dist }
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - if: steps.exists.outputs.found != '200'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  pypi:
+    needs: [build, testpypi]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - id: exists
+        env: { VERSION: "${{ needs.build.outputs.version }}" }
+        run: echo "found=$(curl -s -o /dev/null -w '%{http_code}' "https://pypi.org/pypi/fidus/${VERSION}/json")" >> "$GITHUB_OUTPUT"
+      - if: steps.exists.outputs.found != '200'
+        uses: actions/download-artifact@v8
+        with: { name: dist, path: dist }
+      - if: steps.exists.outputs.found != '200'
+        uses: pypa/gh-action-pypi-publish@release/v1
 
   github-release:
     needs: pypi
@@ -43,4 +73,4 @@ jobs:
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag
+        run: gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag
